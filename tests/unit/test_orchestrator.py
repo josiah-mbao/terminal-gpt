@@ -264,7 +264,8 @@ class TestConversationOrchestrator:
             assert results[0]["success"] is False
             assert "error" in results[0]["result"].lower()
 
-    def test_manage_conversation_length_no_action(self, orchestrator):
+    @pytest.mark.asyncio
+    async def test_manage_conversation_length_no_action(self, orchestrator):
         """Test conversation length management when under limit."""
         conversation = ConversationState(session_id="test")
 

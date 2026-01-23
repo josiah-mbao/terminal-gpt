@@ -3,7 +3,7 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 import structlog
 from pythonjsonlogger import jsonlogger
@@ -172,7 +172,7 @@ def _suppress_third_party_logs():
 
 
 # Convenience functions for structured logging
-def get_logger(name: str) -> structlog.BoundLoggerForLazyProxy:
+def get_logger(name: str) -> Any:
     """Get a structured logger instance."""
     return structlog.get_logger(name)
 

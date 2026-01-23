@@ -26,7 +26,7 @@ class LLMResponse(BaseModel):
     content: str
     model: str
     finish_reason: Optional[str] = None
-    usage: Optional[Dict[str, int]] = None
+    usage: Optional[Dict[str, Any]] = None  # OpenRouter returns complex nested data
     tool_calls: Optional[List[Dict[str, Any]]] = None
 
 
@@ -133,10 +133,24 @@ class OpenRouterProvider(LLMProvider):
 
         for attempt in range(self.max_retries + 1):
             try:
+                logger.debug(
+                    "Making OpenRouter API request",
+                    attempt=attempt + 1,
+                    model=self.model,
+                    messages_count=len(messages),
+                    tools_count=len(tools) if tools else 0
+                )
+
                 # Make API request
                 response = await self._client.post(
                     f"{self.BASE_URL}/chat/completions",
                     json=payload
+                )
+
+                logger.debug(
+                    "OpenRouter API response received",
+                    status_code=response.status_code,
+                    attempt=attempt + 1
                 )
 
                 # Handle HTTP errors
@@ -167,8 +181,7 @@ class OpenRouterProvider(LLMProvider):
                     model=self.model,
                     tokens_used=0,
                     success=False,
-                    duration_ms=int((time.time() - start_time) * 1000),
-                    error=str(e)
+                    duration_ms=int((time.time() - start_time) * 1000)
                 )
                 raise
 
@@ -193,8 +206,7 @@ class OpenRouterProvider(LLMProvider):
                         model=self.model,
                         tokens_used=0,
                         success=False,
-                        duration_ms=int((time.time() - start_time) * 1000),
-                        error=str(e)
+                        duration_ms=int((time.time() - start_time) * 1000)
                     )
                     raise
 
@@ -217,8 +229,7 @@ class OpenRouterProvider(LLMProvider):
                         model=self.model,
                         tokens_used=0,
                         success=False,
-                        duration_ms=int((time.time() - start_time) * 1000),
-                        error=str(e)
+                        duration_ms=int((time.time() - start_time) * 1000)
                     )
                     raise last_exception
 

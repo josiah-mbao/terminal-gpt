@@ -122,11 +122,12 @@ class ConversationOrchestrator:
             try:
                 # Generate LLM response
                 start_time = time.time()
-                llm_response = await self.llm_provider.generate(
-                    messages=messages,
-                    tools=tools,
-                    config={"temperature": 0.7, "max_tokens": 4096}
-                )
+                async with self.llm_provider:
+                    llm_response = await self.llm_provider.generate(
+                        messages=messages,
+                        tools=tools,
+                        config={"temperature": 0.7, "max_tokens": 4096}
+                    )
                 duration_ms = int((time.time() - start_time) * 1000)
 
                 logger.info(
@@ -163,6 +164,7 @@ class ConversationOrchestrator:
                     "LLM generation failed",
                     session_id=conversation.session_id,
                     error=str(e),
+                    error_type=type(e).__name__,
                     iteration=current_iteration
                 )
                 # For now, return a helpful error message
