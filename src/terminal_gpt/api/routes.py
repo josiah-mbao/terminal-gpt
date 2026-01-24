@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from ..application.orchestrator import ConversationOrchestrator
@@ -378,8 +379,86 @@ async def get_stats(
     return stats
 
 
-# Optional: WebSocket endpoint for real-time updates (future enhancement)
-# @app.websocket("/ws/chat/{session_id}")
-# async def chat_websocket(websocket: WebSocket, session_id: str):
-#     await websocket.accept()
-#     # WebSocket implementation for real-time chat updates
+@app.websocket("/ws/chat/{session_id}")
+async def chat_websocket(
+    websocket: WebSocket,
+    session_id: str,
+    orchestrator: ConversationOrchestrator = Depends(get_orchestrator)
+):
+    """WebSocket endpoint for real-time streaming chat responses."""
+    await websocket.accept()
+    
+    try:
+        # Receive the user message
+        message_data = await websocket.receive_json()
+        user_message = message_data.get("message")
+        
+        if not user_message:
+            await websocket.send_json({
+                "type": "error",
+                "error": "No message provided"
+            })
+            return
+
+        logger.info(
+            "WebSocket chat request received",
+            session_id=session_id,
+            message_length=len(user_message)
+        )
+
+        # Process the message with streaming
+        start_time = time.time()
+        
+        try:
+            # Get the streaming response from orchestrator
+            async for chunk in orchestrator.process_user_message_stream(
+                session_id, user_message
+            ):
+                # Send each chunk to the client
+                response_data = {
+                    "type": "chunk",
+                    "content": chunk.content,
+                    "finish_reason": chunk.finish_reason,
+                    "model": chunk.model,
+                    "usage": chunk.usage,
+                    "tools_used": chunk.tool_calls
+                }
+                await websocket.send_json(response_data)
+
+            # Send completion message
+            processing_time_ms = int((time.time() - start_time) * 1000)
+            await websocket.send_json({
+                "type": "complete",
+                "processing_time_ms": processing_time_ms
+            })
+
+        except LLMError as e:
+            # Handle LLM errors gracefully
+            await websocket.send_json({
+                "type": "error",
+                "error": "I'm having trouble connecting to my AI services right now. Please try again in a moment.",
+                "error_details": str(e)
+            })
+
+        except Exception as e:
+            # Handle unexpected errors
+            logger.error(
+                "WebSocket chat processing failed",
+                session_id=session_id,
+                error=str(e)
+            )
+            
+            await websocket.send_json({
+                "type": "error",
+                "error": "An unexpected error occurred. Please try again.",
+                "error_details": str(e)
+            })
+
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected for session {session_id}")
+    except Exception as e:
+        logger.error(
+            "WebSocket error",
+            session_id=session_id,
+            error=str(e)
+        )
