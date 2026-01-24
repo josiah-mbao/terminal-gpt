@@ -123,9 +123,18 @@ async def send_streaming_message(session_id: str, message: str):
                                 ui.console.print("\n[bold magenta]Assistant:[/bold magenta]")
                                 first_chunk = False
 
-                            # Print the chunk content
-                            ui.console.print(content, end="")
-                            full_response += content
+                            # Print the chunk content with adaptive pacing
+                            for char in content:
+                                ui.console.print(char, end="", flush=True)
+                                full_response += char
+                                
+                                # Adaptive pacing based on punctuation
+                                if char in ".!?;:":
+                                    await asyncio.sleep(0.2)  # Longer pause for punctuation
+                                elif char == ",":
+                                    await asyncio.sleep(0.1)  # Medium pause for comma
+                                else:
+                                    await asyncio.sleep(0.02)  # Base delay for regular characters
 
                     elif data["type"] == "complete":
                         # Response completed
