@@ -11,9 +11,12 @@ A fully functional AI agent platform with tool-augmented reasoning, built with P
 
 ## ⚡ Live Demo
 
+<img width="1153" height="773" alt="terminal-gpt" src="https://github.com/user-attachments/assets/11c22daf-e621-4ad5-9903-a93c57d7743f" />
+
+
 **Terminal GPT is fully functional with **Juice** - your personalized AI assistant! 🤖**
 
-**Juice** is a laid-back, slightly whimsical AI assistant specifically designed for your software engineering student lifestyle. He's got your back for coding, internships, AWS certs, EPL/NBA scores, and that slow MacBook! 🧃✨
+**Juice** is a laid-back, slightly whimsical AI assistant specifically designed for your software engineering student lifestyle. He's got your back for coding, internships, AWS certs, Premier league and NBA scores! 🧃✨
 
 ```bash
 # Quick start (requires OpenRouter API key)
@@ -42,17 +45,9 @@ python demo.py --cli chat
 - **📝 Content Creation** - Blog writing, project documentation
 - **⏰ Productivity** - Time management, study planning, task organization
 
+
 **Example Conversation:**
-```
-You: My code's not working, Juice
-Juice: Ah, the classic code rebellion. Lemme peek at that file for ya...
-
-You: What's the EPL score?
-Juice: Ooh, footy time! Let me check those scores...
-
-You: Need to study AWS
-Juice: Study sesh incoming! Got any specific topics bugging you?
-```
+<img width="1146" height="717" alt="Screenshot 2026-01-24 at 21 23 00" src="https://github.com/user-attachments/assets/21330a4a-5cd8-45c1-a17c-c94aa7beb181" />
 
 ## Overview
 
