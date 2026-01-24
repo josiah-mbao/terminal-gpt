@@ -117,6 +117,47 @@ class ConversationOrchestrator:
             )
             raise
 
+    async def process_user_message_stream(
+        self,
+        session_id: str,
+        user_content: str
+    ):
+        """
+        Process a user message and stream the assistant's response.
+
+        This is the main entry point for streaming conversation processing.
+        """
+        try:
+            # Get or create conversation
+            if session_id not in self._conversations:
+                await self.start_conversation(session_id)
+
+            conversation = self._conversations[session_id]
+
+            # Add user message
+            user_message = Message(role="user", content=user_content)
+            conversation = conversation.add_message(user_message)
+
+            # Publish user message event
+            await publish_user_message(session_id, user_content)
+
+            # Generate assistant response with streaming
+            async for chunk in self._generate_assistant_response_stream(conversation):
+                yield chunk
+
+            # Manage conversation length
+            conversation = await self._manage_conversation_length(conversation)
+            self._conversations[session_id] = conversation
+
+        except Exception as e:
+            # Publish conversation error event
+            await publish_conversation_error(
+                session_id=session_id,
+                error_type=type(e).__name__,
+                error_message=str(e)
+            )
+            raise
+
     async def _generate_assistant_response(self, conversation: ConversationState) -> str:
         """Generate an assistant response, potentially involving tool calls."""
         max_iterations = 5  # Prevent infinite loops
@@ -188,6 +229,83 @@ class ConversationOrchestrator:
             max_iterations=max_iterations
         )
         return "I'm sorry, but this conversation has become too complex. Please start a new conversation."
+
+    async def _generate_assistant_response_stream(self, conversation: ConversationState):
+        """Generate an assistant response with streaming, potentially involving tool calls."""
+        max_iterations = 5  # Prevent infinite loops
+        current_iteration = 0
+
+        while current_iteration < max_iterations:
+            current_iteration += 1
+
+            # Prepare context for LLM
+            messages = self._prepare_context_messages(conversation)
+            tools = self._get_available_tools()
+
+            try:
+                # Generate LLM response with streaming
+                start_time = time.time()
+                async with self.llm_provider:
+                    # Use streaming generation
+                    async for chunk in self.llm_provider.generate_stream(
+                        messages=messages,
+                        tools=tools,
+                        config={"temperature": 0.7, "max_tokens": 4096}
+                    ):
+                        yield chunk
+
+                duration_ms = int((time.time() - start_time) * 1000)
+
+                logger.info(
+                    "LLM streaming response completed",
+                    session_id=conversation.session_id,
+                    duration_ms=duration_ms
+                )
+
+                # Note: For streaming, we don't handle tool calls in the same way
+                # as the non-streaming version. Tool calls would need to be handled
+                # differently in a streaming context, potentially by pausing the stream
+                # and resuming after tool execution. For now, we'll let the LLM
+                # handle tool calls in its response without streaming the tool results.
+
+                # For now, we'll break after the first streaming response
+                # In a more sophisticated implementation, you might want to handle
+                # tool calls differently in streaming mode
+                break
+
+            except LLMError as e:
+                logger.error(
+                    "LLM streaming generation failed",
+                    session_id=conversation.session_id,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    iteration=current_iteration
+                )
+                # For now, return a helpful error message
+                # In production, you might want different strategies
+                yield {
+                    "content": "I apologize, but I'm having trouble generating a response right now. Please try again.",
+                    "finish_reason": "error",
+                    "model": self.llm_provider.model,
+                    "usage": {},
+                    "tool_calls": []
+                }
+                break
+
+        # Max iterations reached
+        if current_iteration >= max_iterations:
+            logger.warning(
+                "Max iterations reached in streaming conversation",
+                session_id=conversation.session_id,
+                max_iterations=max_iterations
+            )
+            yield {
+                "content": "I'm sorry, but this conversation has become too complex. Please start a new conversation.",
+                "finish_reason": "length",
+                "model": self.llm_provider.model,
+                "usage": {},
+                "tool_calls": []
+            }
 
     def _prepare_context_messages(self, conversation: ConversationState) -> List[Dict[str, Any]]:
         """Prepare messages for LLM context, managing sliding window."""
