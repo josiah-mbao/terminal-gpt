@@ -1,7 +1,5 @@
 # Terminal GPT
 
-🎉 **COMPLETE & PRODUCTION-READY** 🎉
-
 A fully functional AI agent platform with tool-augmented reasoning, built with Python and FastAPI. Features real LLM conversations, extensible plugin architecture, and a rich terminal interface.
 
 [![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
@@ -11,7 +9,8 @@ A fully functional AI agent platform with tool-augmented reasoning, built with P
 
 ## ⚡ Live Demo
 
-<img width="1153" height="773" alt="terminal-gpt" src="https://github.com/user-attachments/assets/11c22daf-e621-4ad5-9903-a93c57d7743f" />
+<img width="1168" height="745" alt="Screenshot 2026-01-24 at 20 49 26" src="https://github.com/user-attachments/assets/f45c952c-477d-404e-b662-b0f28fa1458f" />
+
 
 
 **Terminal GPT is fully functional with **Juice** - your personalized AI assistant! 🤖**
@@ -47,7 +46,7 @@ python demo.py --cli chat
 
 
 **Example Conversation:**
-<img width="1146" height="717" alt="Screenshot 2026-01-24 at 21 23 00" src="https://github.com/user-attachments/assets/21330a4a-5cd8-45c1-a17c-c94aa7beb181" />
+<img width="1153" height="773" alt="terminal-gpt" src="https://github.com/user-attachments/assets/11c22daf-e621-4ad5-9903-a93c57d7743f" />
 
 ## Overview
 
