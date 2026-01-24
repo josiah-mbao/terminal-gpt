@@ -227,10 +227,178 @@ class CalculatorPlugin(Plugin):
             raise PluginError(f"Failed to evaluate expression: {e}")
 
 
+class SportsScoresInput(BaseModel):
+    """Input schema for sports_scores plugin."""
+    league: str = Field(..., description="Sports league: 'EPL' or 'NBA'")
+
+
+class SportsScoresOutput(BaseModel):
+    """Output schema for sports_scores plugin."""
+    scores: List[Dict[str, Any]] = Field(..., description="List of game scores")
+    count: int = Field(..., description="Number of games found")
+
+
+class SportsScoresPlugin(Plugin):
+    """Plugin for getting live sports scores."""
+
+    name = "sports_scores"
+    description = "Get live scores for EPL and NBA games"
+    input_model = SportsScoresInput
+    output_model = SportsScoresOutput
+
+    async def run(self, input_data: SportsScoresInput) -> SportsScoresOutput:
+        """Get sports scores for the specified league."""
+        try:
+            league = input_data.league.upper()
+            if league not in ["EPL", "NBA"]:
+                raise PluginError(f"Unsupported league: {input_data.league}. Use 'EPL' or 'NBA'")
+
+            scores = await sports_data_manager.get_scores(league)
+
+            # Convert to dict format for LLM
+            scores_dict = []
+            for score in scores:
+                scores_dict.append({
+                    "home_team": score.home_team,
+                    "away_team": score.away_team,
+                    "home_score": score.home_score,
+                    "away_score": score.away_score,
+                    "status": score.status,
+                    "league": score.league,
+                    "venue": score.venue,
+                    "source": score.api_source
+                })
+
+            return SportsScoresOutput(
+                scores=scores_dict,
+                count=len(scores_dict)
+            )
+
+        except Exception as e:
+            raise PluginError(f"Failed to get sports scores: {e}")
+
+
+class PlayerStatsInput(BaseModel):
+    """Input schema for player_stats plugin."""
+    player_name: str = Field(..., description="Name of the player")
+    league: str = Field(..., description="Sports league: 'EPL' or 'NBA'")
+
+
+class PlayerStatsOutput(BaseModel):
+    """Output schema for player_stats plugin."""
+    player_info: Optional[Dict[str, Any]] = Field(None, description="Player statistics")
+    found: bool = Field(..., description="Whether player was found")
+
+
+class PlayerStatsPlugin(Plugin):
+    """Plugin for getting player statistics."""
+
+    name = "player_stats"
+    description = "Get statistics for EPL or NBA players"
+    input_model = PlayerStatsInput
+    output_model = PlayerStatsOutput
+
+    async def run(self, input_data: PlayerStatsInput) -> PlayerStatsOutput:
+        """Get player statistics."""
+        try:
+            league = input_data.league.upper()
+            if league not in ["EPL", "NBA"]:
+                raise PluginError(f"Unsupported league: {input_data.league}. Use 'EPL' or 'NBA'")
+
+            stats = await sports_data_manager.get_player_stats(
+                input_data.player_name, league
+            )
+
+            if stats:
+                player_dict = {
+                    "name": stats.name,
+                    "team": stats.team,
+                    "position": stats.position,
+                    "league": stats.league,
+                    "points": stats.points,
+                    "goals": stats.goals,
+                    "assists": stats.assists,
+                    "rebounds": stats.rebounds,
+                    "steals": stats.steals,
+                    "blocks": stats.blocks,
+                    "games_played": stats.games_played,
+                    "minutes_played": stats.minutes_played,
+                    "source": stats.api_source
+                }
+                return PlayerStatsOutput(
+                    player_info=player_dict,
+                    found=True
+                )
+            else:
+                return PlayerStatsOutput(
+                    player_info=None,
+                    found=False
+                )
+
+        except Exception as e:
+            raise PluginError(f"Failed to get player stats: {e}")
+
+
+class GameDetailsInput(BaseModel):
+    """Input schema for game_details plugin."""
+    game_id: str = Field(..., description="Unique game identifier")
+
+
+class GameDetailsOutput(BaseModel):
+    """Output schema for game_details plugin."""
+    game_info: Optional[Dict[str, Any]] = Field(None, description="Detailed game information")
+    found: bool = Field(..., description="Whether game was found")
+
+
+class GameDetailsPlugin(Plugin):
+    """Plugin for getting detailed game information."""
+
+    name = "game_details"
+    description = "Get detailed information about a specific game"
+    input_model = GameDetailsInput
+    output_model = GameDetailsOutput
+
+    async def run(self, input_data: GameDetailsInput) -> GameDetailsOutput:
+        """Get detailed game information."""
+        try:
+            details = await sports_data_manager.get_game_details(input_data.game_id)
+
+            if details:
+                game_dict = {
+                    "home_team": details.home_team,
+                    "away_team": details.away_team,
+                    "home_score": details.home_score,
+                    "away_score": details.away_score,
+                    "status": details.status,
+                    "league": details.league,
+                    "start_time": details.start_time,
+                    "venue": details.venue,
+                    "referee": details.referee,
+                    "home_stats": details.home_stats,
+                    "away_stats": details.away_stats,
+                    "source": details.api_source
+                }
+                return GameDetailsOutput(
+                    game_info=game_dict,
+                    found=True
+                )
+            else:
+                return GameDetailsOutput(
+                    game_info=None,
+                    found=False
+                )
+
+        except Exception as e:
+            raise PluginError(f"Failed to get game details: {e}")
+
+
 # Export all built-in plugins
 __all__ = [
     'ReadFilePlugin',
     'WriteFilePlugin',
     'ListDirectoryPlugin',
     'CalculatorPlugin',
+    'SportsScoresPlugin',
+    'PlayerStatsPlugin',
+    'GameDetailsPlugin',
 ]

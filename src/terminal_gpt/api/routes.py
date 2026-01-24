@@ -17,6 +17,7 @@ from ..domain.exceptions import (
     ConfigurationError, format_error_response
 )
 from ..application.events import event_bus, publish_health_check
+from ..config import load_config
 
 # Configure logging
 configure_logging()
@@ -101,6 +102,9 @@ async def startup_event():
     global _orchestrator
 
     try:
+        # Load configuration
+        config = load_config()
+
         # Load API key from environment
         import os
         api_key = os.getenv("OPENROUTER_API_KEY")
@@ -118,11 +122,13 @@ async def startup_event():
             model="meta-llama/llama-3.3-70b-instruct:free"
         )
 
-        # Initialize orchestrator
+        # Initialize orchestrator with Juice's personality
         _orchestrator = ConversationOrchestrator(
             llm_provider=llm_provider,
-            max_conversation_length=100,
-            sliding_window_size=50
+            max_conversation_length=config["max_conversation_length"],
+            sliding_window_size=config["sliding_window_size"],
+            enable_summarization=config["enable_summarization"],
+            system_prompt=config["system_prompt"]
         )
 
         # Start event bus

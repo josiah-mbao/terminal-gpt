@@ -25,7 +25,8 @@ class ConversationOrchestrator:
         llm_provider: LLMProvider,
         max_conversation_length: int = 100,
         sliding_window_size: int = 50,
-        enable_summarization: bool = False
+        enable_summarization: bool = False,
+        system_prompt: Optional[str] = None
     ):
         """
         Initialize the conversation orchestrator.
@@ -35,11 +36,13 @@ class ConversationOrchestrator:
             max_conversation_length: Maximum messages in conversation
             sliding_window_size: Size of context window for LLM
             enable_summarization: Whether to enable conversation summarization
+            system_prompt: Optional system prompt to add to conversations
         """
         self.llm_provider = llm_provider
         self.max_conversation_length = max_conversation_length
         self.sliding_window_size = sliding_window_size
         self.enable_summarization = enable_summarization
+        self.system_prompt = system_prompt
 
         # Active conversations (in production, this would be persistent storage)
         self._conversations: Dict[str, ConversationState] = {}
@@ -50,6 +53,13 @@ class ConversationOrchestrator:
             raise ValidationError(f"Conversation {session_id} already exists")
 
         conversation = ConversationState(session_id=session_id)
+
+        # Add system prompt if configured
+        if self.system_prompt:
+            system_message = Message(role="system", content=self.system_prompt)
+            conversation = conversation.add_message(system_message)
+            logger.info("Added system prompt to conversation", session_id=session_id)
+
         self._conversations[session_id] = conversation
 
         logger.info("Started new conversation", session_id=session_id)
