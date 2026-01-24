@@ -1,9 +1,10 @@
 """LLM provider implementations for Terminal GPT."""
 
 import asyncio
+import json
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import httpx
 from pydantic import BaseModel
@@ -40,8 +41,9 @@ class LLMProvider(ABC):
 
     async def __aenter__(self):
         """Async context manager entry."""
+        timeout = httpx.Timeout(30.0, read=60.0)
         self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(30.0, read=60.0),
+            timeout=timeout,
             headers=self._get_headers()
         )
         return self
@@ -65,6 +67,16 @@ class LLMProvider(ABC):
         config: Optional[Dict[str, Any]] = None
     ) -> LLMResponse:
         """Generate response from LLM."""
+        pass
+
+    @abstractmethod
+    async def generate_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        config: Optional[Dict[str, Any]] = None
+    ) -> AsyncGenerator[LLMResponse, None]:
+        """Generate streaming response from LLM."""
         pass
 
     @abstractmethod
@@ -236,13 +248,208 @@ class OpenRouterProvider(LLMProvider):
         # Should not reach here
         raise last_exception or LLMError("All retry attempts exhausted")
 
+    async def generate_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        config: Optional[Dict[str, Any]] = None
+    ) -> AsyncGenerator[LLMResponse, None]:
+        """Generate streaming response from OpenRouter with retry logic."""
+        if not self._client:
+            raise LLMError("Provider not properly initialized. Use async context manager.")
+
+        config = config or {}
+        start_time = time.time()
+
+        # Prepare request payload with streaming enabled
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": config.get("temperature", 0.7),
+            "max_tokens": config.get("max_tokens", 4096),
+            "top_p": config.get("top_p", 1.0),
+            "stream": True,
+        }
+
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+        last_exception = None
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                logger.debug(
+                    "Making OpenRouter streaming API request",
+                    attempt=attempt + 1,
+                    model=self.model,
+                    messages_count=len(messages),
+                    tools_count=len(tools) if tools else 0
+                )
+
+                # Make streaming API request
+                response = await self._client.post(
+                    f"{self.BASE_URL}/chat/completions",
+                    json=payload
+                )
+
+                logger.debug(
+                    "OpenRouter streaming API response received",
+                    status_code=response.status_code,
+                    attempt=attempt + 1
+                )
+
+                # Handle HTTP errors
+                if response.status_code != 200:
+                    self._handle_error(response)
+                    continue  # Should not reach here due to exception
+
+                # Process streaming response
+                async for chunk in self._parse_stream_response(response):
+                    yield chunk
+
+                # Publish success event
+                duration_ms = int((time.time() - start_time) * 1000)
+                await publish_llm_call(
+                    provider="openrouter",
+                    model=self.model,
+                    tokens_used=0,  # Streaming doesn't provide usage until end
+                    success=True,
+                    duration_ms=duration_ms
+                )
+
+                return
+
+            except (LLMAuthenticationError, LLMInvalidRequestError) as e:
+                # Don't retry these errors
+                await publish_llm_call(
+                    provider="openrouter",
+                    model=self.model,
+                    tokens_used=0,
+                    success=False,
+                    duration_ms=int((time.time() - start_time) * 1000)
+                )
+                raise
+
+            except (LLMQuotaExceededError, LLMServiceUnavailableError) as e:
+                last_exception = e
+                if attempt < self.max_retries:
+                    # Exponential backoff
+                    delay = min(
+                        self.retry_delay * (2 ** attempt),
+                        self.max_retry_delay
+                    )
+                    logger.warning(
+                        f"LLM streaming request failed (attempt {attempt + 1}/{self.max_retries + 1}), "
+                        f"retrying in {delay}s: {e}"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    # Publish failure event
+                    await publish_llm_call(
+                        provider="openrouter",
+                        model=self.model,
+                        tokens_used=0,
+                        success=False,
+                        duration_ms=int((time.time() - start_time) * 1000)
+                    )
+                    raise
+
+            except Exception as e:
+                last_exception = LLMError(f"Unexpected error: {e}")
+                if attempt < self.max_retries:
+                    delay = min(
+                        self.retry_delay * (2 ** attempt),
+                        self.max_retry_delay
+                    )
+                    logger.warning(
+                        f"Unexpected LLM streaming error (attempt {attempt + 1}/{self.max_retries + 1}), "
+                        f"retrying in {delay}s: {e}"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    await publish_llm_call(
+                        provider="openrouter",
+                        model=self.model,
+                        tokens_used=0,
+                        success=False,
+                        duration_ms=int((time.time() - start_time) * 1000)
+                    )
+                    raise last_exception
+
+        # Should not reach here
+        raise last_exception or LLMError("All retry attempts exhausted")
+
+    async def _parse_stream_response(self, response: httpx.Response) -> AsyncGenerator[LLMResponse, None]:
+        """Parse OpenRouter streaming response."""
+        
+        async for line in response.aiter_lines():
+            if not line:
+                continue
+
+            # Handle Server-Sent Events format
+            if line.startswith("data: "):
+                data = line[6:]  # Remove "data: " prefix
+                
+                if data == "[DONE]":
+                    break
+
+                try:
+                    # Parse JSON data
+                    parsed_data = json.loads(data)
+                    
+                    # Handle mid-stream errors
+                    if "error" in parsed_data:
+                        error_msg = parsed_data["error"].get("message", "Unknown streaming error")
+                        raise LLMError(f"Streaming error: {error_msg}")
+
+                    # Extract content from chunk
+                    choice = parsed_data.get("choices", [{}])[0]
+                    delta = choice.get("delta", {})
+                    
+                    content = delta.get("content", "")
+                    finish_reason = choice.get("finish_reason")
+                    
+                    # Extract tool calls if present
+                    tool_calls = None
+                    if "tool_calls" in delta and delta["tool_calls"]:
+                        tool_calls = [
+                            {
+                                "id": tc["id"],
+                                "type": tc["type"],
+                                "function": {
+                                    "name": tc["function"]["name"],
+                                    "arguments": tc["function"]["arguments"]
+                                }
+                            }
+                            for tc in delta["tool_calls"]
+                        ]
+
+                    # Yield chunk if it has content or is the final chunk
+                    if content or finish_reason:
+                        yield LLMResponse(
+                            content=content,
+                            model=parsed_data.get("model", self.model),
+                            finish_reason=finish_reason,
+                            usage=parsed_data.get("usage"),
+                            tool_calls=tool_calls
+                        )
+
+                except json.JSONDecodeError:
+                    # Skip invalid JSON lines (like SSE comments)
+                    continue
+                except Exception as e:
+                    raise LLMError(f"Error parsing streaming response: {e}")
+
     def _handle_error(self, response: httpx.Response) -> None:
         """Handle OpenRouter API error responses."""
         try:
             error_data = response.json()
             error_code = error_data.get("error", {}).get("code", "unknown")
             error_message = error_data.get("error", {}).get("message", "Unknown error")
-        except:
+        except Exception:
             error_code = "unknown"
             error_message = f"HTTP {response.status_code}: {response.text[:200]}"
 
