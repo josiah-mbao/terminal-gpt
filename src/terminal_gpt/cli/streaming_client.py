@@ -12,6 +12,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
+from websockets import InvalidStatusCode
 
 from ..infrastructure.logging import get_logger
 
@@ -125,7 +126,7 @@ async def send_streaming_message(session_id: str, message: str):
 
                             # Print the chunk content with adaptive pacing
                             for char in content:
-                                ui.console.print(char, end="", flush=True)
+                                ui.console.print(char, end="")
                                 full_response += char
                                 
                                 # Adaptive pacing based on punctuation
@@ -154,7 +155,7 @@ async def send_streaming_message(session_id: str, message: str):
 
             return full_response
 
-    except websockets.exceptions.InvalidStatusCode as e:
+    except InvalidStatusCode as e:
         if e.status_code == 404:
             ui.print_error("Session not found", f"Session '{session_id}' does not exist")
         elif e.status_code == 500:
