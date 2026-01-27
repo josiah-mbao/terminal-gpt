@@ -173,7 +173,7 @@ class TheSportsDBProvider(SportsDataProvider):
     """TheSportsDB - Free comprehensive sports database."""
 
     def __init__(self):
-        super().__init__("https://www.thesportsdb.com/api/v1/json/3")
+        super().__init__("https://www.thesportsdb.com/api/v1/json/123")  # Free API key
 
     async def get_scores(self, league: str) -> List[UnifiedGameScore]:
         """Get scores from TheSportsDB."""
@@ -227,8 +227,8 @@ class TheSportsDBProvider(SportsDataProvider):
             raise RuntimeError("Provider not initialized")
 
         try:
-            # Search for player
-            response = await self._client.get(f"https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p={player_name}")
+            # Search for player using free API key
+            response = await self._client.get(f"/searchplayers.php?p={player_name}")
 
             if response.status_code != 200:
                 return None
@@ -466,8 +466,10 @@ class NBAApiProvider(SportsDataProvider):
 
             # Get player stats (would need additional API calls for full stats)
             # For now, return basic player info
+            first_name = matching_player['firstName']
+            last_name = matching_player['lastName']
             stats = UnifiedPlayerStats(
-                name=f"{matching_player['firstName']} {matching_player['lastName']}",
+                name=f"{first_name} {last_name}",
                 team=matching_player.get("teamId", "Unknown"),
                 position=matching_player.get("pos"),
                 league="NBA",
