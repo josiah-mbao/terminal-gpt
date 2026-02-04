@@ -121,6 +121,10 @@ class EnhancedUI:
             # For temporary status that can be overwritten
             self.console.print(status_text, end="\r" if not details else "\n")
     
+    def print_warning(self, message: str, details: Optional[str] = None, persistent: bool = False):
+        """Print a warning message."""
+        self.print_status(StatusLevel.WARNING, message, details, persistent)
+    
     def print_welcome(self):
         """Print enhanced welcome message."""
         # Create header

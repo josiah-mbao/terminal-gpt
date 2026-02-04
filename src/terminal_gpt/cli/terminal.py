@@ -16,7 +16,6 @@ from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich.spinner import Spinner
 from rich.table import Table
-from rich.text import Text
 from rich.theme import Theme
 
 from ..infrastructure.logging import get_logger
@@ -24,110 +23,10 @@ from .enhanced_ui import enhanced_ui, StatusLevel
 
 logger = get_logger("terminal_gpt.cli")
 
-# Custom theme for terminal
-custom_theme = Theme({
-    "info": "cyan",
-    "warning": "yellow",
-    "error": "red",
-    "success": "green",
-    "user": "blue bold",
-    "assistant": "magenta",
-    "system": "dim cyan",
-    "tool": "yellow italic",
-})
-
-console = Console(theme=custom_theme)
-
 # Global state
 current_session: Optional[str] = None
 api_base_url = "http://localhost:8000"
 client = httpx.AsyncClient(timeout=60.0)
-
-
-class TerminalUI:
-    """Terminal UI for chat interactions."""
-
-    def __init__(self):
-        self.console = console
-
-    def print_welcome(self):
-        """Print welcome message."""
-        welcome_text = Text("🤖 Terminal GPT", style="bold cyan")
-        welcome_panel = Panel(
-            "[dim]AI-powered chat system with plugin support[/dim]\n\n"
-            "[dim cyan]Type your message and press Enter to chat.[/dim cyan]\n"
-            "[dim cyan]Use /help for available commands.[/dim cyan]",
-            title=welcome_text,
-            border_style="cyan"
-        )
-        self.console.print(welcome_panel)
-
-    def print_message(self, role: str, content: str, session_id: Optional[str] = None):
-        """Print a chat message with appropriate formatting."""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        if role == "user":
-            header = f"[user]You[/user] ({timestamp})"
-            style = "user"
-        elif role == "assistant":
-            header = f"[assistant]Assistant[/assistant] ({timestamp})"
-            style = "assistant"
-            # Render as markdown for better formatting
-            content = Markdown(content)
-        elif role == "system":
-            header = f"[system]System[/system] ({timestamp})"
-            style = "system"
-        elif role == "tool":
-            header = f"[tool]Tool Result[/tool] ({timestamp})"
-            style = "tool"
-        else:
-            header = f"[{role}] ({timestamp})"
-            style = "dim"
-
-        panel = Panel(
-            content,
-            title=header,
-            border_style=style,
-            title_align="left"
-        )
-        self.console.print(panel)
-
-    def print_error(self, message: str, details: Optional[str] = None):
-        """Print an error message."""
-        error_text = Text(f"❌ {message}", style="error")
-        if details:
-            error_text.append(f"\n[bold]{details}[/bold]")
-        self.console.print(error_text)
-
-    def print_success(self, message: str):
-        """Print a success message."""
-        self.console.print(f"[success]✅ {message}[/success]")
-
-    def print_info(self, message: str):
-        """Print an info message."""
-        self.console.print(f"[info]ℹ️  {message}[/info]")
-
-    def print_warning(self, message: str):
-        """Print a warning message."""
-        self.console.print(f"[warning]⚠️  {message}[/warning]")
-
-    def create_status_table(self, stats: dict) -> Table:
-        """Create a status table from stats."""
-        table = Table(title="System Status")
-        table.add_column("Metric", style="cyan")
-        table.add_column("Value", style="magenta")
-
-        for key, value in stats.items():
-            table.add_row(key.replace("_", " ").title(), str(value))
-
-        return table
-
-    async def show_spinner(self, message: str, coro):
-        """Show a spinner while executing an async operation."""
-        with self.console.status(f"[bold green]{message}...") as status:
-            result = await coro
-        return result
-
 
 # Global UI instance - use enhanced UI
 ui = enhanced_ui
@@ -234,7 +133,7 @@ def show_help():
 - Persistent conversation sessions
 - Real-time status monitoring
 """
-    console.print(Panel(help_text, title="Help", border_style="cyan"))
+    ui.console.print(Panel(help_text, title="Help", border_style="status.info"))
 
 
 async def handle_command(command: str) -> bool:
@@ -245,7 +144,7 @@ async def handle_command(command: str) -> bool:
     if cmd == "/help":
         show_help()
     elif cmd == "/clear":
-        console.clear()
+        ui.console.clear()
         ui.print_welcome()
     elif cmd == "/sessions":
         await handle_sessions_command()
@@ -288,7 +187,7 @@ async def handle_sessions_command():
             info["last_activity"]
         )
 
-    console.print(table)
+    ui.console.print(table)
 
 
 async def handle_switch_session(session_id: str):
@@ -323,7 +222,7 @@ async def handle_stats_command():
         return
 
     table = ui.create_status_table(stats)
-    console.print(table)
+    ui.console.print(table)
 
 
 async def handle_status_command():
@@ -467,7 +366,7 @@ def chat(
                 return
 
             # Welcome message
-            console.clear()
+            ui.console.clear()
             ui.print_welcome()
 
             # Start chat loop
