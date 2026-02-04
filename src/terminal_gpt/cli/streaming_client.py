@@ -268,7 +268,7 @@ async def chat_loop():
             ui.print_message("user", user_input)
 
             # Show typing indicator
-            ui.console.print("\n[bold cyan]AI is typing...[/bold cyan]")
+            ui.console.print("\n[bold cyan]Juice is thinking...[/bold cyan]")
 
             # Send message and stream response
             response = await send_streaming_message(current_session, user_input)
@@ -289,7 +289,7 @@ async def chat_loop():
 
 # CLI app
 app = typer.Typer(
-    name="terminal-gpt-streaming",
+    name="JuiceBot",
     help="Real-time AI chat with streaming responses via WebSocket",
     rich_markup_mode="rich"
 )

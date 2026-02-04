@@ -13,6 +13,8 @@ from ..application.events import (
     publish_plugin_execution, publish_conversation_error
 )
 from ..infrastructure.logging import get_logger
+from ..infrastructure.prompt_manager import get_system_prompt
+from ..infrastructure.context_summarizer import ContextSummarizer
 
 logger = get_logger("terminal_gpt.orchestrator")
 
@@ -55,10 +57,16 @@ class ConversationOrchestrator:
         conversation = ConversationState(session_id=session_id)
 
         # Add system prompt if configured
-        if self.system_prompt:
-            system_message = Message(role="system", content=self.system_prompt)
+        system_prompt = get_system_prompt()
+        if system_prompt:
+            system_message = Message(
+                role="system", content=system_prompt
+            )
             conversation = conversation.add_message(system_message)
-            logger.info("Added system prompt to conversation", session_id=session_id)
+            logger.info(
+                "Added system prompt to conversation",
+                session_id=session_id
+            )
 
         self._conversations[session_id] = conversation
 
@@ -177,7 +185,10 @@ class ConversationOrchestrator:
                     llm_response = await self.llm_provider.generate(
                         messages=messages,
                         tools=tools,
-                        config={"temperature": 0.7, "max_tokens": 4096}
+                        config={
+                            "temperature": 0.7,
+                            "max_tokens": 4096
+                        }
                     )
                 duration_ms = int((time.time() - start_time) * 1000)
 
@@ -185,7 +196,10 @@ class ConversationOrchestrator:
                     "LLM response generated",
                     session_id=conversation.session_id,
                     duration_ms=duration_ms,
-                    tokens_used=llm_response.usage.get("total_tokens", 0) if llm_response.usage else 0
+                    tokens_used=(
+                        llm_response.usage.get("total_tokens", 0)
+                        if llm_response.usage else 0
+                    )
                 )
 
                 # Check for tool calls
@@ -220,7 +234,10 @@ class ConversationOrchestrator:
                 )
                 # For now, return a helpful error message
                 # In production, you might want different strategies
-                return f"I apologize, but I'm having trouble generating a response right now. Please try again."
+                return (
+                    "I apologize, but I'm having trouble generating a response "
+                    "right now. Please try again."
+                )
 
         # Max iterations reached
         logger.warning(
@@ -250,7 +267,10 @@ class ConversationOrchestrator:
                     async for chunk in self.llm_provider.generate_stream(
                         messages=messages,
                         tools=tools,
-                        config={"temperature": 0.7, "max_tokens": 4096}
+                        config={
+                            "temperature": 0.7,
+                            "max_tokens": 4096
+                        }
                     ):
                         yield chunk
 
@@ -264,13 +284,14 @@ class ConversationOrchestrator:
 
                 # Note: For streaming, we don't handle tool calls in the same way
                 # as the non-streaming version. Tool calls would need to be handled
-                # differently in a streaming context, potentially by pausing the stream
-                # and resuming after tool execution. For now, we'll let the LLM
-                # handle tool calls in its response without streaming the tool results.
+                # differently in a streaming context, potentially by pausing the
+                # stream and resuming after tool execution. For now, we'll let the
+                # LLM handle tool calls in its response without streaming the tool
+                # results.
 
                 # For now, we'll break after the first streaming response
-                # In a more sophisticated implementation, you might want to handle
-                # tool calls differently in streaming mode
+                # In a more sophisticated implementation, you might want to
+                # handle tool calls differently in streaming mode
                 break
 
             except LLMError as e:
@@ -284,7 +305,10 @@ class ConversationOrchestrator:
                 # For now, return a helpful error message
                 # In production, you might want different strategies
                 yield {
-                    "content": "I apologize, but I'm having trouble generating a response right now. Please try again.",
+                    "content": (
+                        "I apologize, but I'm having trouble generating a "
+                        "response right now. Please try again."
+                    ),
                     "finish_reason": "error",
                     "model": self.llm_provider.model,
                     "usage": {},
@@ -292,7 +316,7 @@ class ConversationOrchestrator:
                 }
                 break
 
-        # Max iterations reached
+                # Max iterations reached
         if current_iteration >= max_iterations:
             logger.warning(
                 "Max iterations reached in streaming conversation",
@@ -300,7 +324,10 @@ class ConversationOrchestrator:
                 max_iterations=max_iterations
             )
             yield {
-                "content": "I'm sorry, but this conversation has become too complex. Please start a new conversation.",
+                "content": (
+                    "I'm sorry, but this conversation has become too complex. "
+                    "Please start a new conversation."
+                ),
                 "finish_reason": "length",
                 "model": self.llm_provider.model,
                 "usage": {},
@@ -453,7 +480,9 @@ class ConversationOrchestrator:
 
         return results
 
-    async def _manage_conversation_length(self, conversation: ConversationState) -> ConversationState:
+    async def _manage_conversation_length(
+        self, conversation: ConversationState
+    ) -> ConversationState:
         """Manage conversation length through truncation or summarization."""
         if len(conversation.messages) <= self.max_conversation_length:
             return conversation
@@ -466,11 +495,60 @@ class ConversationOrchestrator:
         )
 
         if self.enable_summarization:
-            # Future: Implement summarization
-            # For now, just truncate
-            pass
+            try:
+                # Initialize context summarizer with LLM provider
+                context_summarizer = ContextSummarizer(
+                    llm_provider=self.llm_provider,
+                    summarization_threshold=0.7,
+                    max_summary_length=500,
+                    preserve_user_preferences=True,
+                    preserve_tool_results=True,
+                    preserve_file_context=True
+                )
 
-        # Simple truncation: keep recent messages
+                # Check if summarization should be triggered
+                should_summarize = await context_summarizer.should_summarize(
+                    conversation
+                )
+
+                if should_summarize:
+                    # Generate summary and get recent messages to keep
+                    summary, recent_messages = await (
+                        context_summarizer.summarize_conversation(
+                            conversation
+                        )
+                    )
+
+                    # Convert summary to system message
+                    summary_message = summary.to_message()
+
+                    # Create new conversation with summary + recent messages
+                    summarized_messages = [summary_message] + recent_messages
+                    summarized_conversation = ConversationState(
+                        session_id=conversation.session_id,
+                        messages=summarized_messages
+                    )
+
+                    logger.info(
+                        "Conversation summarized",
+                        session_id=conversation.session_id,
+                        original_length=len(conversation.messages),
+                        new_length=len(summarized_conversation.messages),
+                        summary_length=len(summary.summary_text)
+                    )
+
+                    return summarized_conversation
+
+            except Exception as e:
+                # Log summarization failure and fall back to truncation
+                logger.error(
+                    "Conversation summarization failed, falling back to truncation",
+                    session_id=conversation.session_id,
+                    error=str(e),
+                    error_type=type(e).__name__
+                )
+
+        # Fallback to simple truncation
         keep_count = min(self.max_conversation_length, len(conversation.messages))
         recent_messages = conversation.messages[-keep_count:]
 
