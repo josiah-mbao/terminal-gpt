@@ -20,6 +20,7 @@ from rich.text import Text
 from rich.theme import Theme
 
 from ..infrastructure.logging import get_logger
+from .enhanced_ui import enhanced_ui, StatusLevel
 
 logger = get_logger("terminal_gpt.cli")
 
@@ -128,8 +129,8 @@ class TerminalUI:
         return result
 
 
-# Global UI instance
-ui = TerminalUI()
+# Global UI instance - use enhanced UI
+ui = enhanced_ui
 
 
 async def check_api_health() -> bool:
@@ -162,17 +163,18 @@ async def send_chat_message(session_id: str, message: str) -> Optional[dict]:
             return response.json()
         else:
             error_data = response.json()
-            ui.print_error(
+            ui.print_status(
+                StatusLevel.ERROR,
                 f"API Error ({response.status_code})",
                 error_data.get("error", {}).get("message", "Unknown error")
             )
             return None
 
     except httpx.TimeoutException:
-        ui.print_error("Request timed out", "The API took too long to respond")
+        ui.print_status(StatusLevel.ERROR, "Request timed out", "The API took too long to respond")
         return None
     except Exception as e:
-        ui.print_error("Connection failed", f"Could not connect to API: {e}")
+        ui.print_status(StatusLevel.ERROR, "Connection failed", f"Could not connect to API: {e}")
         return None
 
 
@@ -267,11 +269,11 @@ async def handle_sessions_command():
     """Handle /sessions command."""
     sessions = await get_sessions()
     if sessions is None:
-        ui.print_error("Could not retrieve sessions")
+        ui.print_status(StatusLevel.ERROR, "Could not retrieve sessions")
         return
 
     if not sessions:
-        ui.print_info("No active sessions")
+        ui.print_status(StatusLevel.INFO, "No active sessions")
         return
 
     table = Table(title="Active Sessions")
@@ -297,9 +299,9 @@ async def handle_switch_session(session_id: str):
     sessions = await get_sessions()
     if sessions and session_id in sessions:
         current_session = session_id
-        ui.print_success(f"Switched to session: {session_id}")
+        ui.print_status(StatusLevel.SUCCESS, f"Switched to session: {session_id}")
     else:
-        ui.print_warning(f"Session '{session_id}' not found. Use /new {session_id} to create it.")
+        ui.print_status(StatusLevel.WARNING, f"Session '{session_id}' not found. Use /new {session_id} to create it.")
 
 
 async def handle_new_session(session_id: str):
@@ -308,16 +310,16 @@ async def handle_new_session(session_id: str):
 
     if await create_session(session_id):
         current_session = session_id
-        ui.print_success(f"Created and switched to new session: {session_id}")
+        ui.print_status(StatusLevel.SUCCESS, f"Created and switched to new session: {session_id}")
     else:
-        ui.print_error(f"Failed to create session: {session_id}")
+        ui.print_status(StatusLevel.ERROR, f"Failed to create session: {session_id}")
 
 
 async def handle_stats_command():
     """Handle /stats command."""
     stats = await get_stats()
     if stats is None:
-        ui.print_error("Could not retrieve statistics")
+        ui.print_status(StatusLevel.ERROR, "Could not retrieve statistics")
         return
 
     table = ui.create_status_table(stats)
@@ -327,9 +329,13 @@ async def handle_stats_command():
 async def handle_status_command():
     """Handle /status command."""
     if await check_api_health():
-        ui.print_success("API is healthy and responding")
+        ui.print_status(StatusLevel.SUCCESS, "API is healthy and responding")
     else:
-        ui.print_error("API is not responding", "Make sure the API server is running on http://localhost:8000")
+        ui.print_status(
+            StatusLevel.ERROR, 
+            "API is not responding", 
+            "Make sure the API server is running on http://localhost:8000"
+        )
 
 
 async def chat_loop():
@@ -339,13 +345,13 @@ async def chat_loop():
     # Initialize with default session if none set
     if not current_session:
         current_session = f"session_{int(datetime.now().timestamp())}"
-        if await create_session(current_session):
-            ui.print_info(f"Started new session: {current_session}")
-        else:
-            ui.print_error("Failed to create session")
-            return
+    if await create_session(current_session):
+        ui.print_status(StatusLevel.INFO, f"Started new session: {current_session}")
+    else:
+        ui.print_status(StatusLevel.ERROR, "Failed to create session")
+        return
 
-    ui.print_info(f"Current session: {current_session}")
+    ui.print_status(StatusLevel.INFO, f"Current session: {current_session}")
 
     while True:
         try:
@@ -366,10 +372,8 @@ async def chat_loop():
             ui.print_message("user", user_input)
 
             # Show typing indicator
-            response = await ui.show_spinner(
-                "AI is thinking",
-                send_chat_message(current_session, user_input)
-            )
+            async with ui.thinking_indicator("thinking") as thinking:
+                response = await send_chat_message(current_session, user_input)
 
             if response:
                 # Display AI response
@@ -377,40 +381,61 @@ async def chat_loop():
 
                 # Show metadata if available
                 if response.get("tokens_used"):
-                    ui.print_info(f"Tokens used: {response['tokens_used']}")
+                    ui.print_status(
+                        StatusLevel.INFO, 
+                        f"Tokens used: {response['tokens_used']}"
+                    )
                 if response.get("processing_time_ms"):
-                    ui.print_info(f"Response time: {response['processing_time_ms']}ms")
+                    ui.print_status(
+                        StatusLevel.INFO, 
+                        f"Response time: {response['processing_time_ms']}ms"
+                    )
 
                 # Show status
                 status = response.get("status", "unknown")
                 if status == "degraded":
-                    ui.print_warning("Response generated in degraded mode")
+                    ui.print_status(StatusLevel.WARNING, "Response generated in degraded mode")
                 elif status == "error":
-                    ui.print_error("Response generated with errors")
+                    ui.print_status(StatusLevel.ERROR, "Response generated with errors")
 
             else:
-                ui.print_error("Failed to get response from AI")
+                ui.print_status(StatusLevel.ERROR, "Failed to get response from AI")
 
         except KeyboardInterrupt:
-            ui.print_warning("Input cancelled. Type /quit to exit or continue chatting.")
+            ui.print_status(StatusLevel.WARNING, "Input cancelled. Type /quit to exit or continue chatting.")
         except EOFError:
             break
         except Exception as e:
-            ui.print_error(f"Unexpected error: {e}")
+            ui.print_status(StatusLevel.ERROR, f"Unexpected error: {e}")
             logger.error("Chat loop error", error=str(e))
 
 
 async def startup_checks():
     """Perform startup checks."""
-    ui.print_info("Checking API connection...")
+    ui.print_status(StatusLevel.INFO, "Checking API connection...")
 
     if not await check_api_health():
-        ui.print_error("API server is not running or not healthy")
-        ui.print_info("Make sure to start the API server first:")
-        ui.print_info("  uvicorn src.terminal_gpt.api.routes:app --reload")
+        ui.print_status(StatusLevel.ERROR, "API server is not running or not healthy")
+        ui.print_status(StatusLevel.INFO, "Make sure to start the API server first:")
+        ui.print_status(StatusLevel.INFO, "  uvicorn src.terminal_gpt.api.routes:app --reload")
         return False
 
-    ui.print_success("API connection established")
+    ui.print_status(StatusLevel.SUCCESS, "API connection established")
+    
+    # Check terminal compatibility
+    ui.print_status(StatusLevel.INFO, "Validating terminal compatibility...")
+    validation = ui.validate_terminal_size()
+    
+    if not validation["is_compatible"]:
+        ui.print_accessibility_report()
+        ui.print_status(
+            StatusLevel.WARNING, 
+            "Consider adjusting terminal size for optimal experience",
+            persistent=True
+        )
+    else:
+        ui.print_status(StatusLevel.SUCCESS, "Terminal compatibility verified")
+    
     return True
 
 
@@ -449,12 +474,12 @@ def chat(
             await chat_loop()
 
             # Goodbye message
-            ui.print_info("Goodbye! 👋")
+            ui.print_status(StatusLevel.INFO, "Goodbye! 👋")
 
         except KeyboardInterrupt:
-            ui.print_info("Interrupted. Goodbye! 👋")
+            ui.print_status(StatusLevel.INFO, "Interrupted. Goodbye! 👋")
         except Exception as e:
-            ui.print_error(f"Fatal error: {e}")
+            ui.print_status(StatusLevel.ERROR, f"Fatal error: {e}")
             logger.error("Fatal CLI error", error=str(e))
         finally:
             await client.aclose()
