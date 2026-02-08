@@ -41,7 +41,8 @@ class LLMProvider(ABC):
 
     async def __aenter__(self):
         """Async context manager entry."""
-        timeout = httpx.Timeout(30.0, read=60.0)
+        # Increased timeouts for long streaming responses (Session Stability Fix)
+        timeout = httpx.Timeout(60.0, read=180.0)  # 60s connect, 180s read
         self._client = httpx.AsyncClient(
             timeout=timeout,
             headers=self._get_headers()
@@ -275,12 +276,33 @@ class OpenRouterProvider(LLMProvider):
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
 
+        # Log API key validation
+        logger.info(
+            "OpenRouter provider initialized",
+            model=self.model,
+            api_key_preview=f"{self.api_key[:8]}...",
+            max_retries=self.max_retries,
+            retry_delay=self.retry_delay
+        )
+
+        # Log the request payload (sanitized)
+        logger.info(
+            "OpenRouter streaming request payload",
+            model=payload["model"],
+            messages_count=len(messages),
+            tools_count=len(tools) if tools else 0,
+            temperature=payload["temperature"],
+            max_tokens=payload["max_tokens"],
+            stream=payload["stream"]
+        )
+
         last_exception = None
 
         for attempt in range(self.max_retries + 1):
             try:
-                logger.debug(
-                    "Making OpenRouter streaming API request",
+                logger.warning(
+                    f"Making OpenRouter streaming API request "
+                    f"(attempt {attempt + 1}/{self.max_retries + 1})",
                     attempt=attempt + 1,
                     model=self.model,
                     messages_count=len(messages),
@@ -293,11 +315,25 @@ class OpenRouterProvider(LLMProvider):
                     json=payload
                 )
 
-                logger.debug(
+                # Log full response details including headers for rate limit debugging
+                logger.warning(
                     "OpenRouter streaming API response received",
                     status_code=response.status_code,
-                    attempt=attempt + 1
+                    attempt=attempt + 1,
+                    headers=dict(response.headers),
+                    url=str(response.url)
                 )
+
+                # Log rate limit headers specifically
+                rate_limit_headers = {
+                    k: v for k, v in response.headers.items()
+                    if 'rate' in k.lower() or 'limit' in k.lower() or 'retry' in k.lower()
+                }
+                if rate_limit_headers:
+                    logger.error(
+                        "Rate limit headers detected",
+                        rate_limit_headers=rate_limit_headers
+                    )
 
                 # Handle HTTP errors
                 if response.status_code != 200:
@@ -514,8 +550,8 @@ class OpenRouterProvider(LLMProvider):
                 tool_calls=tool_calls
             )
 
-        except (KeyError, IndexError) as e:
-            raise LLMError(f"Invalid response format from OpenRouter: {e}")
+        except (KeyError, IndexError):
+            raise LLMError("Invalid response format from OpenRouter")
 
 
 # Provider factory
