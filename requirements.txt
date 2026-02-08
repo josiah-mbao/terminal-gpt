@@ -1,0 +1,21 @@
+# Core Dependencies
+fastapi==0.115.0
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+websockets==15.0
+
+# Enhanced UI Dependencies
+rich==15.0.0
+typer==0.16.0
+
+# LLM Providers
+openai==1.50.0
+
+# Plugin System Dependencies
+requests==2.32.0
+beautifulsoup4==4.13.0
+lxml==5.4.0
+
+# Development Dependencies
+pytest==8.3.0
+pytest-asyncio==0.25.0

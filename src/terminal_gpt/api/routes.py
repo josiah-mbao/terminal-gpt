@@ -120,7 +120,7 @@ async def startup_event():
         llm_provider = create_llm_provider(
             "openrouter",
             api_key,
-            model="meta-llama/llama-3.3-70b-instruct:free"
+            model=config.get("openrouter", {}).get("default_model", "arcee-ai/trinity-large-preview:free")
         )
 
         # Initialize orchestrator with Juice's personality
@@ -403,7 +403,8 @@ async def chat_websocket(
         logger.info(
             "WebSocket chat request received",
             session_id=session_id,
-            message_length=len(user_message)
+            message_length=len(user_message),
+            message_preview=user_message[:50] + "..." if len(user_message) > 50 else user_message
         )
 
         # Process the message with streaming
@@ -414,15 +415,27 @@ async def chat_websocket(
             async for chunk in orchestrator.process_user_message_stream(
                 session_id, user_message
             ):
-                # Send each chunk to the client
-                response_data = {
-                    "type": "chunk",
-                    "content": chunk.content,
-                    "finish_reason": chunk.finish_reason,
-                    "model": chunk.model,
-                    "usage": chunk.usage,
-                    "tools_used": chunk.tool_calls
-                }
+                # Handle both LLMResponse objects and dictionary chunks
+                if hasattr(chunk, 'content'):
+                    # LLMResponse object
+                    response_data = {
+                        "type": "chunk",
+                        "content": chunk.content,
+                        "finish_reason": chunk.finish_reason,
+                        "model": chunk.model,
+                        "usage": chunk.usage,
+                        "tools_used": chunk.tool_calls
+                    }
+                else:
+                    # Dictionary chunk (from error handling)
+                    response_data = {
+                        "type": "chunk",
+                        "content": chunk.get("content", ""),
+                        "finish_reason": chunk.get("finish_reason"),
+                        "model": chunk.get("model"),
+                        "usage": chunk.get("usage"),
+                        "tools_used": chunk.get("tool_calls")
+                    }
                 await websocket.send_json(response_data)
 
             # Send completion message

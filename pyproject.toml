@@ -45,7 +45,10 @@ docs = [
 ]
 
 [project.scripts]
-terminal-gpt = "terminal_gpt.cli.terminal:app"
+terminal-gpt = "terminal_gpt.main:app"
+terminal-gpt-server = "terminal_gpt.main:server"
+terminal-gpt-chat = "terminal_gpt.main:chat"
+terminal-gpt-streaming = "terminal_gpt.main:streaming"
 
 [tool.setuptools.packages.find]
 where = ["src"]

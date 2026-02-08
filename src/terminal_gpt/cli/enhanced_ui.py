@@ -45,6 +45,11 @@ PROFESSIONAL_THEME = Theme({
     "plugin.web": "bold green", 
     "plugin.calc": "bold yellow",
     "plugin.sports": "bold cyan",
+    
+    # Jengo theme colors (green theme)
+    "jengo.header": "bold green",
+    "jengo.accent": "bold bright_green",
+    "jengo.subtitle": "bold green3",
 })
 
 console = Console(theme=PROFESSIONAL_THEME, force_terminal=True)
@@ -93,6 +98,31 @@ class EnhancedUI:
         self.console = console
         self.thinking_spinner = ThinkingSpinner()
         self.last_status_time = 0
+    
+    def print_jengo_ascii_art(self):
+        """Print ASCII art heading for Jengo with green theme."""
+        # ASCII art for "Faya" with green gradient
+        ascii_art = [
+                "     ██╗███████╗███╗   ██╗ ██████╗  ██████╗ ",
+                "     ██║██╔════╝████╗  ██║██╔════╝ ██╔═══██╗ ",
+                "     ██║█████╗  ██╔██╗ ██║██║  ███╗██║   ██║ ",
+                "     ██║██╔══╝  ██║╚██╗██║██║   ██║██║   ██║ ",
+                "██   ██║██╔══╝  ██║╚██╗██║██║   ██║██║   ██║ ",
+                "╚█████╔╝███████╗██║ ╚████║╚██████╔╝╚██████╔╝",
+                "╚════╝ ╚══════╝╚═╝  ╚═══╝ ╚═════╝  ╚═════╝ ",
+        ]
+        
+        # Print each line with green gradient
+        for i, line in enumerate(ascii_art):
+            # Create gradient effect from light to dark green
+            if i < 2:
+                style = "jengo.header"
+            elif i < 4:
+                style = "jengo.accent"
+            else:
+                style = "jengo.header"
+            
+            self.console.print(Text(line, style=style))
         
     def print_status(self, level: tuple, message: str, details: Optional[str] = None, 
                     persistent: bool = False):
@@ -125,14 +155,28 @@ class EnhancedUI:
         """Print a warning message."""
         self.print_status(StatusLevel.WARNING, message, details, persistent)
     
+    def print_error(self, message: str, details: Optional[str] = None, persistent: bool = False):
+        """Print an error message."""
+        self.print_status(StatusLevel.ERROR, message, details, persistent)
+    
+    def print_success(self, message: str, details: Optional[str] = None, persistent: bool = False):
+        """Print a success message."""
+        self.print_status(StatusLevel.SUCCESS, message, details, persistent)
+    
+    def print_info(self, message: str, details: Optional[str] = None, persistent: bool = False):
+        """Print an info message."""
+        self.print_status(StatusLevel.INFO, message, details, persistent)
+    
     def print_welcome(self):
-        """Print enhanced welcome message."""
-        # Create header
-        header = Panel(
-            Align("[bold]🤖 Terminal GPT[/bold]\n[dim]AI-powered terminal assistant[/dim]", align="center"),
-            border_style="ui.border",
-            padding=(1, 2)
-        )
+        """Print enhanced welcome message with Jengo ASCII art."""
+        # Print ASCII art header
+        self.print_jengo_ascii_art()
+        
+        # Print subtitle
+        subtitle = Text("AI-Powered Terminal Assistant", 
+                       style="jengo.subtitle")
+        self.console.print(Align(subtitle, align="center"))
+        self.console.print()  # Empty line for spacing 
         
         # Create features list
         features = Panel(
@@ -161,7 +205,6 @@ class EnhancedUI:
         )
         
         # Display welcome
-        self.console.print(header)
         self.console.print(Columns([features, tips], equal=True, expand=True))
     
     def print_message(self, role: str, content: str, session_id: Optional[str] = None, 
