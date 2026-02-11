@@ -123,7 +123,7 @@ class PromptManager:
         }
 
         config_str = json.dumps(config_data, sort_keys=True)
-        return hashlib.md5(config_str.encode()).hexdigest()
+        return hashlib.sha256(config_str.encode()).hexdigest()
 
     def invalidate_cache(self) -> None:
         """Invalidate all cached prompts."""

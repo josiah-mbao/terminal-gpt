@@ -187,8 +187,8 @@ class ConversationOrchestrator:
                     "All good, see ya!",
                     "Later! Hit me up if you need anything."
                 ]
-                import random
-                farewell = random.choice(farewell_responses)
+                import secrets
+                farewell = secrets.choice(farewell_responses)
                 
                 yield {
                     "content": farewell,

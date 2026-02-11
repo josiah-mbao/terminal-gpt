@@ -374,8 +374,8 @@ class EnhancedUI:
             parsed = json.loads(data)
             formatted = json.dumps(parsed, indent=2)
             data = formatted
-        except:
-            pass  # Keep original data
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass  # Keep original data if parsing fails
         
         panel = Panel(
             data,

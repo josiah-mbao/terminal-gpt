@@ -6,6 +6,7 @@ This module contains the core plugins that ship with Terminal GPT.
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
+from simpleeval import simple_eval
 
 from ..domain.plugins import Plugin
 from ..domain.exceptions import PluginError
@@ -209,8 +210,8 @@ class CalculatorPlugin(Plugin):
             if not all(c in allowed_chars for c in input_data.expression):
                 raise PluginError("Expression contains invalid characters")
 
-            # Use eval with restricted globals/locals for safety
-            result = eval(input_data.expression, {"__builtins__": {}}, {})
+            # Use simple_eval for safe mathematical expression evaluation
+            result = simple_eval(input_data.expression)
 
             if not isinstance(result, (int, float)):
                 raise PluginError("Expression did not evaluate to a number")
