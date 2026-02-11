@@ -14,9 +14,9 @@ A fully functional AI agent platform with tool-augmented reasoning, built with P
 
 
 
-**Terminal GPT is fully functional with **Juice** - your personalized AI assistant! 🤖**
+**Terminal GPT is fully functional with **Jengo** - your personalized AI assistant! 🤖**
 
-**Juice** is a laid-back, slightly whimsical AI assistant specifically designed for your software engineering student lifestyle. He's got your back for coding, internships, AWS certs, Premier league and NBA scores! 🧃✨
+**Jengo** is a laid-back, slightly whimsical AI assistant specifically designed for your software engineering student lifestyle. He's got your back for coding, internships, AWS certs, Premier league and NBA scores! 🧃✨
 
 ```bash
 # Quick start (requires OpenRouter API key)
@@ -24,20 +24,25 @@ git clone https://github.com/josiah-mbao/terminal-gpt.git
 cd terminal-gpt
 pip install -e .
 export OPENROUTER_API_KEY="your-key-here"
-python demo.py --cli chat
+
+# Terminal 1: Start the API server
+python -m terminal_gpt server
+
+# Terminal 2: Start the streaming chat client
+python -m terminal_gpt streaming
 ```
 
-## 🧃 Meet Juice - Your AI Assistant
+## 🧃 Meet Jengo - Your AI Assistant
 
-**Juice** is your laid-back, slightly whimsical AI companion - specifically designed for software engineering students like you!
+**Jengo** is your laid-back, slightly whimsical AI companion - specifically designed for software engineering students like you!
 
-### Juice's Personality
+### Jengo's Personality
 - **Laid-back & nonchalant** - "Yeah, that debug issue... piece of cake"
 - **Whimsical humor** - "That code's throwing a tantrum, let's calm it down"
 - **Casual & genuine** - No corporate stiffness, just a chill coding buddy
 - **Proactively helpful** - Ready to assist with coding, internships, sports, and life
 
-### What Juice Can Help With
+### What Jengo Can Help With
 - **💻 Coding & Debugging** - Code analysis, architecture planning, file operations
 - **🎓 Career Development** - Internship applications, resume tailoring, AWS/CKA study
 - **⚽ Sports Enthusiasm** - EPL & NBA scores, player stats, game breakdowns
@@ -150,17 +155,19 @@ Terminal GPT is a complete AI agent platform featuring:
    # Edit .env with your OPENROUTER_API_KEY
    ```
 
-3. **Run the terminal chat:**
+3. **Start the two-terminal setup:**
+
+   **Terminal 1 - Start the API Server:**
    ```bash
-   # Interactive CLI
-   python -m src.terminal_gpt.cli.terminal chat
-
-   # Or use the demo script
-   python demo.py --cli chat
-
-   # Start API server
-   python demo.py --api
+   python -m terminal_gpt server
    ```
+
+   **Terminal 2 - Start the Streaming Chat Client:**
+   ```bash
+   python -m terminal_gpt streaming
+   ```
+
+   The server will start on `http://127.0.0.1:8000` and the streaming client will connect to it for real-time chat.
 
 ### Development Setup
 
@@ -205,30 +212,48 @@ docker compose run --rm dev pytest
 
 ## Usage
 
-### Terminal Interface
+Terminal GPT uses a **two-terminal architecture** with a FastAPI server and a streaming chat client.
 
-Start a conversation:
+### Two-Terminal Setup
+
+**Terminal 1 - Start the API Server:**
 ```bash
-terminal-gpt
+python -m terminal_gpt server
 ```
+This starts the FastAPI server on `http://127.0.0.1:8000`.
 
-The interface supports:
-- Multi-line input (Ctrl+D to send)
-- Rich formatting for responses
-- Command shortcuts
-- Error display with recovery options
-
-### API Server
-
-Run the FastAPI server:
+**Terminal 2 - Start the Streaming Chat Client:**
 ```bash
-uvicorn src.terminal_gpt.api.routes:app --reload
+python -m terminal_gpt streaming
 ```
+This connects to the server and provides an interactive chat interface with real-time streaming responses.
 
-API endpoints:
-- `POST /chat` - Send messages
-- `GET /health` - Health check
-- `WebSocket /ws/chat` - Real-time chat (future)
+### Features
+
+The streaming chat interface supports:
+- **Real-time streaming** - See responses as they're generated
+- **Multi-line input** - Type longer messages with ease
+- **Rich formatting** - Beautiful terminal output with colors and styles
+- **Command shortcuts** - Quick access to common actions
+- **Error recovery** - Graceful handling of connection issues
+
+### API Endpoints (Server)
+
+When the server is running, these endpoints are available:
+- `POST /chat` - Send messages and receive responses
+- `GET /health` - Health check endpoint
+- `WebSocket /ws/chat` - Real-time streaming chat
+
+You can also interact with the API directly:
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Send a chat message
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "test", "message": "Hello!"}'
+```
 
 ### Example Conversation
 
