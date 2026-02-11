@@ -170,6 +170,8 @@ pre-commit install
 pytest
 ```
 
+**Pre-commit hooks** will automatically format your code and run checks before each commit.
+
 ### Docker Setup
 
 Build and run using Docker:

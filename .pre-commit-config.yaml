@@ -1,0 +1,146 @@
+# =============================================================================
+# Pre-commit Configuration
+# Run automated checks before each git commit
+# Install: pip install pre-commit && pre-commit install
+# Update: pre-commit autoupdate
+# Run manually: pre-commit run --all-files
+# =============================================================================
+
+repos:
+  # -----------------------------------------------------------------------------
+  # General File Checks
+  # -----------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Prevent committing to main branch accidentally
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+      
+      # Check for files that would conflict in case-insensitive filesystems
+      - id: check-case-conflict
+      
+      # Check for merge conflict markers
+      - id: check-merge-conflict
+      
+      # Check for broken symlinks
+      - id: check-symlinks
+      
+      # Check for invalid JSON
+      - id: check-json
+      
+      # Check for invalid YAML
+      - id: check-yaml
+      
+      # Check for invalid TOML
+      - id: check-toml
+      
+      # Ensure files end with a newline
+      - id: end-of-file-fixer
+      
+      # Remove trailing whitespace
+      - id: trailing-whitespace
+      
+      # Detect private keys
+      - id: detect-private-key
+      
+      # Check for added large files
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+
+  # -----------------------------------------------------------------------------
+  # Python Code Formatting - Black
+  # -----------------------------------------------------------------------------
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.11
+        args: [--line-length=88, --target-version=py311]
+        files: ^(src|tests)/
+
+  # -----------------------------------------------------------------------------
+  # Python Import Sorting - isort
+  # -----------------------------------------------------------------------------
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: [--profile=black, --filter-files]
+        files: ^(src|tests)/
+
+  # -----------------------------------------------------------------------------
+  # Python Linting - flake8
+  # -----------------------------------------------------------------------------
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        additional_dependencies: [flake8-docstrings]
+        args: [--max-line-length=88, --extend-ignore=E203,W503]
+        files: ^(src|tests)/
+
+  # -----------------------------------------------------------------------------
+  # Python Type Checking - mypy
+  # -----------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.1
+    hooks:
+      - id: mypy
+        additional_dependencies: 
+          - types-python-dateutil
+          - types-requests
+          - pydantic>=2.5.0
+          - fastapi>=0.104.0
+        args: [--ignore-missing-imports, --show-error-codes]
+        files: ^src/
+
+  # -----------------------------------------------------------------------------
+  # Python Security - Bandit
+  # -----------------------------------------------------------------------------
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml]
+        additional_dependencies: ["bandit[toml]"]
+        files: ^src/
+
+  # -----------------------------------------------------------------------------
+  # Dockerfile Linting
+  # -----------------------------------------------------------------------------
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.1-beta
+    hooks:
+      - id: hadolint-docker
+        entry: hadolint/hadolint:v2.12.1-beta hadolint
+
+  # -----------------------------------------------------------------------------
+  # GitHub Actions Linting
+  # -----------------------------------------------------------------------------
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.6.26
+    hooks:
+      - id: actionlint
+        files: ^.github/workflows/
+
+  # -----------------------------------------------------------------------------
+  # Markdown Linting
+  # -----------------------------------------------------------------------------
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.38.0
+    hooks:
+      - id: markdownlint
+        args: [--fix]
+        files: \.md$
+        exclude: (CHANGELOG|LICENSE)\.md
+
+  # -----------------------------------------------------------------------------
+  # Spell Checking
+  # -----------------------------------------------------------------------------
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.6
+    hooks:
+      - id: codespell
+        args: [--write-changes]
+        files: ^(src|tests|docs)/.*\.(py|md|rst)$
