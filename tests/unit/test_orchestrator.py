@@ -1,14 +1,15 @@
 """Unit tests for conversation orchestrator."""
 
-import pytest
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Dict, Any
+
+import pytest
 
 from terminal_gpt.application.orchestrator import ConversationOrchestrator
-from terminal_gpt.infrastructure.llm_providers import LLMResponse, OpenRouterProvider
+from terminal_gpt.domain.exceptions import LLMError, PluginError, ValidationError
 from terminal_gpt.domain.models import ConversationState, Message
-from terminal_gpt.domain.exceptions import ValidationError, LLMError, PluginError
 from terminal_gpt.domain.plugins import plugin_registry
+from terminal_gpt.infrastructure.llm_providers import LLMResponse, OpenRouterProvider
 
 
 @pytest.fixture

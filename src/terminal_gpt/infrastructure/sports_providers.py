@@ -3,8 +3,8 @@
 import asyncio
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 from pydantic import BaseModel, Field

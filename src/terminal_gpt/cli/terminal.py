@@ -13,13 +13,13 @@ from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm, Prompt
 from rich.spinner import Spinner
 from rich.table import Table
 from rich.theme import Theme
 
 from ..infrastructure.logging import get_logger
-from .enhanced_ui import enhanced_ui, StatusLevel
+from .enhanced_ui import StatusLevel, enhanced_ui
 
 logger = get_logger("terminal_gpt.cli")
 

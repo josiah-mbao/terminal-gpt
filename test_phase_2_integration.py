@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Dependency-free test for Phase 2 Context Summarization integration."""
 
-import sys
+import inspect
 import os
 import py_compile
-import inspect
+import sys
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))

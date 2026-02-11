@@ -4,12 +4,13 @@ This module contains the core plugins that ship with Terminal GPT.
 """
 
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 from simpleeval import simple_eval
 
-from ..domain.plugins import Plugin
 from ..domain.exceptions import PluginError
+from ..domain.plugins import Plugin
 from ..infrastructure.sports_providers import sports_data_manager
 
 

@@ -2,13 +2,13 @@
 """Test script to demonstrate enhanced UI features."""
 
 import asyncio
-import sys
 import os
+import sys
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from terminal_gpt.cli.enhanced_ui import enhanced_ui, StatusLevel
+from terminal_gpt.cli.enhanced_ui import StatusLevel, enhanced_ui
 
 
 async def test_enhanced_ui():

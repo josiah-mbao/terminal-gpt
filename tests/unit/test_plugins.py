@@ -3,8 +3,8 @@
 import pytest
 from pydantic import BaseModel
 
+from terminal_gpt.domain.exceptions import PluginError, PluginValidationError
 from terminal_gpt.domain.plugins import Plugin, PluginRegistry, plugin_registry
-from terminal_gpt.domain.exceptions import PluginValidationError, PluginError
 
 
 class MockInput(BaseModel):

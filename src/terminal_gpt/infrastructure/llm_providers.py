@@ -9,17 +9,17 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import httpx
 from pydantic import BaseModel
 
+from ..application.events import publish_llm_call
 from ..domain.exceptions import (
-    LLMError,
+    ConfigurationError,
     LLMAuthenticationError,
+    LLMContentFilterError,
+    LLMError,
+    LLMInvalidRequestError,
     LLMQuotaExceededError,
     LLMServiceUnavailableError,
-    LLMInvalidRequestError,
-    LLMContentFilterError,
-    ConfigurationError,
 )
 from ..infrastructure.logging import get_logger
-from ..application.events import publish_llm_call
 
 logger = get_logger("terminal_gpt.llm")
 

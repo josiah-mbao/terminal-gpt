@@ -1,24 +1,25 @@
 """Unit tests for exception hierarchy."""
 
 import pytest
+
 from terminal_gpt.domain.exceptions import (
-    TerminalGPTError,
-    ValidationError,
-    PluginError,
-    LLMError,
     ConfigurationError,
-    ResourceLimitError,
-    SessionError,
+    ConversationInvalidStateError,
+    ConversationTooLongError,
     LLMAuthenticationError,
+    LLMError,
     LLMQuotaExceededError,
     LLMServiceUnavailableError,
-    PluginValidationError,
+    MessageInvalidFormatError,
+    MessageTooLargeError,
+    PluginError,
     PluginExecutionError,
     PluginTimeoutError,
-    ConversationTooLongError,
-    ConversationInvalidStateError,
-    MessageTooLargeError,
-    MessageInvalidFormatError,
+    PluginValidationError,
+    ResourceLimitError,
+    SessionError,
+    TerminalGPTError,
+    ValidationError,
     format_error_response,
 )
 

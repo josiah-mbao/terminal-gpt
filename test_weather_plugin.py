@@ -2,10 +2,11 @@
 """Test script for the get_weather plugin."""
 
 import asyncio
+
 from src.terminal_gpt.infrastructure.builtin_plugins import (
     GetWeatherPlugin,
-    WeatherInput,
     PluginError,
+    WeatherInput,
 )
 
 

@@ -1,10 +1,11 @@
 """Unit tests for domain models."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from pydantic import ValidationError
 
-from terminal_gpt.domain.models import Message, ConversationState, ConversationSummary
+from terminal_gpt.domain.models import ConversationState, ConversationSummary, Message
 
 
 class TestMessage:

@@ -6,12 +6,12 @@ essential context while managing token usage in long conversations.
 
 import json
 import re
-from typing import List, Dict, Any, Tuple
 from datetime import datetime
+from typing import Any, Dict, List, Tuple
 
-from ..domain.models import Message, ConversationState
-from ..infrastructure.logging import get_logger
+from ..domain.models import ConversationState, Message
 from ..infrastructure.llm_providers import LLMProvider
+from ..infrastructure.logging import get_logger
 
 logger = get_logger("terminal_gpt.context_summarizer")
 

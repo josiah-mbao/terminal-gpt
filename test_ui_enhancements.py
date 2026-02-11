@@ -8,7 +8,7 @@ from pathlib import Path
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from terminal_gpt.cli.enhanced_ui import enhanced_ui, StatusLevel
+from terminal_gpt.cli.enhanced_ui import StatusLevel, enhanced_ui
 
 
 async def test_enhanced_ui():
@@ -127,7 +127,7 @@ async def test_terminal_integration():
 
     # Test that terminal.py can import and use enhanced UI
     try:
-        from terminal_gpt.cli.terminal import ui, StatusLevel
+        from terminal_gpt.cli.terminal import StatusLevel, ui
 
         print("✅ Successfully imported enhanced UI from terminal.py")
 

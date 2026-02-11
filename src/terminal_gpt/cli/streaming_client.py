@@ -3,7 +3,7 @@
 import asyncio
 import json
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
 
 import typer
 import websockets
@@ -12,8 +12,8 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
 
-from ..infrastructure.logging import get_logger
 from ..cli.enhanced_ui import enhanced_ui
+from ..infrastructure.logging import get_logger
 
 logger = get_logger("terminal_gpt.streaming_cli")
 

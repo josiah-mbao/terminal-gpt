@@ -89,10 +89,10 @@ def streaming(
     console.print("\nType /help for available commands\n")
 
     # Import and run the streaming client directly
-    from .cli.streaming_client import chat as streaming_chat
-
     # Set environment variables for the streaming client
     import os
+
+    from .cli.streaming_client import chat as streaming_chat
 
     if session:
         os.environ["TERMINAL_GPT_SESSION"] = session

@@ -2,14 +2,14 @@
 """Test script to verify context summarization integration."""
 
 import asyncio
-import sys
 import os
+import sys
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
+from terminal_gpt.domain.models import ConversationState, Message
 from terminal_gpt.infrastructure.context_summarizer import ContextSummarizer
-from terminal_gpt.domain.models import Message, ConversationState
 from terminal_gpt.infrastructure.llm_providers import LLMProvider
 
 

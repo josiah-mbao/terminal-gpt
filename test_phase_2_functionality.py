@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Comprehensive test for Phase 2 Context Summarization functionality."""
 
-import sys
-import os
 import asyncio
-from typing import List, Dict, Any
+import os
+import sys
+from typing import Any, Dict, List
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
@@ -26,7 +26,7 @@ def test_imports():
         print("✅ ConversationOrchestrator imported successfully")
 
         # Test config import
-        from terminal_gpt.config import load_config, DEFAULT_CONFIG
+        from terminal_gpt.config import DEFAULT_CONFIG, load_config
 
         print("✅ Configuration components imported successfully")
 

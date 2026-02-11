@@ -3,17 +3,18 @@
 import asyncio
 import time
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
+
+from rich.align import Align
+from rich.columns import Columns
 from rich.console import Console
+from rich.live import Live
+from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
-from rich.spinner import Spinner
 from rich.theme import Theme
-from rich.markdown import Markdown
-from rich.live import Live
-from rich.columns import Columns
-from rich.align import Align
 
 # Professional color theme
 PROFESSIONAL_THEME = Theme(

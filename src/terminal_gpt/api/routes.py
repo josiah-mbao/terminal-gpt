@@ -2,28 +2,35 @@
 
 import os
 import time
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from ..application.events import event_bus, publish_health_check
 from ..application.orchestrator import ConversationOrchestrator
-from ..infrastructure.llm_providers import create_llm_provider
-from ..infrastructure.logging import configure_logging, get_logger
+from ..config import get_openrouter_config, load_config
 from ..domain.exceptions import (
+    ConfigurationError,
+    LLMError,
     TerminalGPTError,
     ValidationError,
-    LLMError,
-    ConfigurationError,
     format_error_response,
 )
-from ..application.events import event_bus, publish_health_check
-from ..config import load_config, get_openrouter_config
 from ..infrastructure.builtin_plugins import register_builtin_plugins
+from ..infrastructure.llm_providers import create_llm_provider
+from ..infrastructure.logging import configure_logging, get_logger
 
 # Configure logging
 configure_logging()

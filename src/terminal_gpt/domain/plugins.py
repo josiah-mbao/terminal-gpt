@@ -6,6 +6,7 @@ for tool-augmented reasoning.
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Type
+
 from pydantic import BaseModel
 
 from .exceptions import PluginError, PluginValidationError

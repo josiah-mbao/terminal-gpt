@@ -1,12 +1,13 @@
 """Configuration and system prompts for Terminal GPT."""
 
 import os
-from typing import Dict, Any
+from typing import Any, Dict
 
 # Try to load environment variables from .env file
 try:
-    from dotenv import load_dotenv
     from pathlib import Path
+
+    from dotenv import load_dotenv
 
     # Load from project root (where this file is located)
     env_path = Path(__file__).parent.parent.parent / ".env"
