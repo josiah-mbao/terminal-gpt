@@ -236,7 +236,7 @@ async def chat_loop():
                     "Jengo is thinking...",
                 ]
                 frame_idx = 0
-                for _ in range(24):  # Up to 6 seconds
+                for _ in range(12):  # Up to 3 seconds
                     if (
                         conversation_history
                         and conversation_history[-1].get("role") == "user"
