@@ -40,9 +40,7 @@ async def send_streaming_message(session_id: str, message: str):
 
     try:
         async with websockets.connect(
-            websocket_url,
-            open_timeout=CONNECTION_TIMEOUT,
-            close_timeout=10.0
+            websocket_url, open_timeout=CONNECTION_TIMEOUT, close_timeout=10.0
         ) as websocket:
             # Send the message
             await websocket.send(json.dumps({"message": message}))
@@ -53,10 +51,7 @@ async def send_streaming_message(session_id: str, message: str):
 
             while True:
                 try:
-                    response = await asyncio.wait_for(
-                        websocket.recv(),
-                        timeout=300.0
-                    )
+                    response = await asyncio.wait_for(websocket.recv(), timeout=300.0)
                     data = json.loads(response)
 
                     if data["type"] == "chunk":
@@ -87,17 +82,21 @@ async def send_streaming_message(session_id: str, message: str):
                         # Response completed
                         processing_time = data.get("processing_time_ms", 0)
                         # Add to conversation history
-                        conversation_history.append({
-                            "role": "assistant",
-                            "content": full_response,
-                            "time": datetime.now()
-                        })
+                        conversation_history.append(
+                            {
+                                "role": "assistant",
+                                "content": full_response,
+                                "time": datetime.now(),
+                            }
+                        )
                         # Trim history if too long
                         if len(conversation_history) > 6:
-                            conversation_history.pop(0) if conversation_history[0]["role"] == "user" else None
-                        ui.console.print(
-                            f"\n[dim]⚡ {processing_time}ms[/dim]"
-                        )
+                            (
+                                conversation_history.pop(0)
+                                if conversation_history[0]["role"] == "user"
+                                else None
+                            )
+                        ui.console.print(f"\n[dim]⚡ {processing_time}ms[/dim]")
                         break
 
                     elif data["type"] == "error":
@@ -115,7 +114,7 @@ async def send_streaming_message(session_id: str, message: str):
             return full_response
 
     except Exception as e:
-        status_code = getattr(e, 'status_code', None)
+        status_code = getattr(e, "status_code", None)
         if status_code == 404:
             ui.print_error("Session not found", f"Session '{session_id}' not found")
         elif status_code == 500:
@@ -128,9 +127,7 @@ async def send_streaming_message(session_id: str, message: str):
 
 
 async def send_streaming_message_with_retry(
-    session_id: str,
-    message: str,
-    max_retries: int = MAX_RETRY_ATTEMPTS
+    session_id: str, message: str, max_retries: int = MAX_RETRY_ATTEMPTS
 ) -> Optional[str]:
     """Send a message with automatic reconnection on failure."""
     retry_delays = RETRY_DELAYS[:max_retries]
@@ -227,31 +224,31 @@ async def chat_loop():
                 continue
 
             # Add user message to history
-            conversation_history.append({
-                "role": "user",
-                "content": user_input,
-                "time": datetime.now()
-            })
+            conversation_history.append(
+                {"role": "user", "content": user_input, "time": datetime.now()}
+            )
 
             # Show thinking animation
             with Live(refresh_per_second=8) as live:
-                frames = ["Jengo is thinking.  ", 
-                         "Jengo is thinking.. ", 
-                         "Jengo is thinking..."]
+                frames = [
+                    "Jengo is thinking.  ",
+                    "Jengo is thinking.. ",
+                    "Jengo is thinking...",
+                ]
                 frame_idx = 0
                 for _ in range(24):  # Up to 6 seconds
-                    if conversation_history and \
-                            conversation_history[-1].get("role") == "user":
-                        live.update(Text(frames[frame_idx], 
-                                         style="bold cyan"))
+                    if (
+                        conversation_history
+                        and conversation_history[-1].get("role") == "user"
+                    ):
+                        live.update(Text(frames[frame_idx], style="bold cyan"))
                         frame_idx = (frame_idx + 1) % len(frames)
                         await asyncio.sleep(0.25)
                     else:
                         break
 
             # Send message and get response
-            if conversation_history and \
-                    conversation_history[-1].get("role") == "user":
+            if conversation_history and conversation_history[-1].get("role") == "user":
                 response = await send_streaming_message_with_retry(
                     current_session, user_input
                 )
@@ -269,16 +266,18 @@ async def chat_loop():
 
 # CLI app
 app = typer.Typer(
-    name="Jengo",
-    help="AI chat with streaming responses",
-    rich_markup_mode="rich"
+    name="Jengo", help="AI chat with streaming responses", rich_markup_mode="rich"
 )
 
 
 @app.command()
 def chat(
-    session: Optional[str] = typer.Option(None, "--session", "-s", help="Session ID to use"),
-    api_url: str = typer.Option("ws://localhost:8000", "--api-url", help="WebSocket API base URL")
+    session: Optional[str] = typer.Option(
+        None, "--session", "-s", help="Session ID to use"
+    ),
+    api_url: str = typer.Option(
+        "ws://localhost:8000", "--api-url", help="WebSocket API base URL"
+    ),
 ):
     """Start interactive streaming chat session."""
     global current_session, api_base_url

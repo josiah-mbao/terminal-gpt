@@ -19,7 +19,7 @@ from terminal_gpt.domain.exceptions import (
     ConversationInvalidStateError,
     MessageTooLargeError,
     MessageInvalidFormatError,
-    format_error_response
+    format_error_response,
 )
 
 
@@ -81,8 +81,9 @@ class TestExceptionHierarchy:
     def test_specific_llm_errors(self):
         """Test specific LLM error subclasses."""
         auth_error = LLMAuthenticationError("Auth failed", provider="openai")
-        quota_error = LLMQuotaExceededError("Quota exceeded", provider="openai",
-                                           retry_after=60)
+        quota_error = LLMQuotaExceededError(
+            "Quota exceeded", provider="openai", retry_after=60
+        )
         service_error = LLMServiceUnavailableError("Service down", provider="openai")
 
         assert isinstance(auth_error, LLMError)
@@ -98,10 +99,12 @@ class TestExceptionHierarchy:
     def test_plugin_specific_errors(self):
         """Test plugin-specific error subclasses."""
         validation_error = PluginValidationError("Invalid input", plugin_name="calc")
-        execution_error = PluginExecutionError("Exec failed", plugin_name="calc",
-                                              exit_code=1)
-        timeout_error = PluginTimeoutError("Timeout", plugin_name="calc",
-                                          timeout_seconds=30)
+        execution_error = PluginExecutionError(
+            "Exec failed", plugin_name="calc", exit_code=1
+        )
+        timeout_error = PluginTimeoutError(
+            "Timeout", plugin_name="calc", timeout_seconds=30
+        )
 
         assert isinstance(validation_error, PluginError)
         assert isinstance(execution_error, PluginError)
@@ -150,7 +153,7 @@ class TestErrorFormatting:
             "error": {
                 "type": "TerminalGPTError",
                 "message": "Something went wrong",
-                "details": {"code": "TEST"}
+                "details": {"code": "TEST"},
             }
         }
 
@@ -166,7 +169,7 @@ class TestErrorFormatting:
             "error": {
                 "type": "TerminalGPTError",
                 "message": "Error message",
-                "details": {}
+                "details": {},
             }
         }
 
@@ -174,8 +177,9 @@ class TestErrorFormatting:
 
     def test_format_plugin_error(self):
         """Test formatting plugin error with name."""
-        error = PluginError("Plugin failed", plugin_name="calculator",
-                           details={"input": "invalid"})
+        error = PluginError(
+            "Plugin failed", plugin_name="calculator", details={"input": "invalid"}
+        )
 
         response = format_error_response(error)
 
@@ -184,7 +188,7 @@ class TestErrorFormatting:
                 "type": "PluginError",
                 "message": "Plugin failed",
                 "details": {"input": "invalid"},
-                "plugin_name": "calculator"
+                "plugin_name": "calculator",
             }
         }
 
@@ -200,8 +204,12 @@ class TestErrorFormatting:
 
     def test_format_llm_error_full(self):
         """Test formatting LLM error with all fields."""
-        error = LLMError("LLM failed", provider="openai", retryable=True,
-                        details={"request_id": "123"})
+        error = LLMError(
+            "LLM failed",
+            provider="openai",
+            retryable=True,
+            details={"request_id": "123"},
+        )
 
         response = format_error_response(error)
 
@@ -211,7 +219,7 @@ class TestErrorFormatting:
                 "message": "LLM failed",
                 "details": {"request_id": "123"},
                 "provider": "openai",
-                "retryable": "true"
+                "retryable": "true",
             }
         }
 
@@ -228,7 +236,7 @@ class TestErrorFormatting:
                 "type": "LLMError",
                 "message": "LLM failed",
                 "details": {},
-                "retryable": "false"
+                "retryable": "false",
             }
         }
 
@@ -236,8 +244,9 @@ class TestErrorFormatting:
 
     def test_format_quota_error_with_retry(self):
         """Test formatting quota error with retry information."""
-        error = LLMQuotaExceededError("Quota exceeded", provider="openai",
-                                     retry_after=300)
+        error = LLMQuotaExceededError(
+            "Quota exceeded", provider="openai", retry_after=300
+        )
 
         response = format_error_response(error)
 
@@ -248,7 +257,7 @@ class TestErrorFormatting:
                 "details": {},
                 "provider": "openai",
                 "retryable": "true",
-                "retry_after_seconds": "300"
+                "retry_after_seconds": "300",
             }
         }
 
@@ -268,11 +277,7 @@ class TestErrorFormatting:
             "Plugin execution failed",
             plugin_name="calculator",
             exit_code=2,
-            details={
-                "input": "2 + 2",
-                "expected": "4",
-                "got": "error"
-            }
+            details={"input": "2 + 2", "expected": "4", "got": "error"},
         )
 
         response = format_error_response(error)
@@ -281,12 +286,8 @@ class TestErrorFormatting:
             "error": {
                 "type": "PluginExecutionError",
                 "message": "Plugin execution failed",
-                "details": {
-                    "input": "2 + 2",
-                    "expected": "4",
-                    "got": "error"
-                },
-                "plugin_name": "calculator"
+                "details": {"input": "2 + 2", "expected": "4", "got": "error"},
+                "plugin_name": "calculator",
             }
         }
 

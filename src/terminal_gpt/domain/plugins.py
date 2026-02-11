@@ -29,23 +29,31 @@ class Plugin(ABC):
 
     def __init__(self):
         """Validate plugin configuration on initialization."""
-        if not hasattr(self, 'name') or not self.name:
+        if not hasattr(self, "name") or not self.name:
             raise PluginValidationError("Plugin must define a non-empty name")
-        if not hasattr(self, 'description') or not self.description:
+        if not hasattr(self, "description") or not self.description:
             raise PluginValidationError("Plugin must define a description")
-        if not hasattr(self, 'input_model') or not self.input_model:
+        if not hasattr(self, "input_model") or not self.input_model:
             raise PluginValidationError("Plugin must define an input_model")
-        if not hasattr(self, 'output_model') or not self.output_model:
+        if not hasattr(self, "output_model") or not self.output_model:
             raise PluginValidationError("Plugin must define an output_model")
 
         # Validate that models are Pydantic BaseModel subclasses
-        if not (isinstance(self.input_model, type) and
-                issubclass(self.input_model, BaseModel)):
-            raise PluginValidationError("input_model must be a Pydantic BaseModel subclass")
+        if not (
+            isinstance(self.input_model, type)
+            and issubclass(self.input_model, BaseModel)
+        ):
+            raise PluginValidationError(
+                "input_model must be a Pydantic BaseModel subclass"
+            )
 
-        if not (isinstance(self.output_model, type) and
-                issubclass(self.output_model, BaseModel)):
-            raise PluginValidationError("output_model must be a Pydantic BaseModel subclass")
+        if not (
+            isinstance(self.output_model, type)
+            and issubclass(self.output_model, BaseModel)
+        ):
+            raise PluginValidationError(
+                "output_model must be a Pydantic BaseModel subclass"
+            )
 
     @abstractmethod
     async def run(self, input_data: BaseModel) -> BaseModel:
@@ -75,23 +83,23 @@ class Plugin(ABC):
             properties = {}
             required = []
 
-            for field_name, field_info in input_schema.get('properties', {}).items():
+            for field_name, field_info in input_schema.get("properties", {}).items():
                 # Convert field to OpenAI format
                 prop_def = {
-                    'type': field_info.get('type', 'string'),
-                    'description': field_info.get('description', ''),
+                    "type": field_info.get("type", "string"),
+                    "description": field_info.get("description", ""),
                 }
 
                 # Handle special types
-                if field_info.get('type') == 'array':
-                    prop_def['items'] = field_info.get('items', {'type': 'string'})
-                elif field_info.get('type') == 'object':
-                    prop_def['properties'] = field_info.get('properties', {})
+                if field_info.get("type") == "array":
+                    prop_def["items"] = field_info.get("items", {"type": "string"})
+                elif field_info.get("type") == "object":
+                    prop_def["properties"] = field_info.get("properties", {})
 
                 properties[field_name] = prop_def
 
                 # Check if field is required
-                if field_name in input_schema.get('required', []):
+                if field_name in input_schema.get("required", []):
                     required.append(field_name)
 
             tool_def = {
@@ -102,9 +110,9 @@ class Plugin(ABC):
                     "parameters": {
                         "type": "object",
                         "properties": properties,
-                        "required": required
-                    }
-                }
+                        "required": required,
+                    },
+                },
             }
 
             return tool_def
@@ -136,7 +144,7 @@ class Plugin(ABC):
         except Exception as e:
             raise PluginValidationError(
                 f"Input validation failed for plugin {self.name}: {e}",
-                plugin_name=self.name
+                plugin_name=self.name,
             )
 
         try:
@@ -149,8 +157,7 @@ class Plugin(ABC):
         except Exception as e:
             # Wrap other exceptions in PluginError
             raise PluginError(
-                f"Plugin {self.name} execution failed: {e}",
-                plugin_name=self.name
+                f"Plugin {self.name} execution failed: {e}", plugin_name=self.name
             ) from e
 
         try:
@@ -164,13 +171,13 @@ class Plugin(ABC):
             else:
                 raise PluginValidationError(
                     f"Plugin {self.name} returned invalid output type: {type(result)}",
-                    plugin_name=self.name
+                    plugin_name=self.name,
                 )
 
         except Exception as e:
             raise PluginValidationError(
                 f"Output validation failed for plugin {self.name}: {e}",
-                plugin_name=self.name
+                plugin_name=self.name,
             )
 
 
@@ -240,7 +247,9 @@ class PluginRegistry:
         """
         return name in self._plugins
 
-    async def execute_tool_call(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_tool_call(
+        self, tool_name: str, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute a tool call by name with arguments.
 
         Args:

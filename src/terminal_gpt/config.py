@@ -7,8 +7,9 @@ from typing import Dict, Any
 try:
     from dotenv import load_dotenv
     from pathlib import Path
+
     # Load from project root (where this file is located)
-    env_path = Path(__file__).parent.parent.parent / '.env'
+    env_path = Path(__file__).parent.parent.parent / ".env"
     load_dotenv(dotenv_path=env_path)
 except ImportError:
     # dotenv not installed, that's okay
@@ -225,7 +226,7 @@ def load_config() -> dict:
         env_value = os.getenv(env_var)
         if env_value is not None:
             if isinstance(config[config_key], bool):
-                config[config_key] = env_value.lower() in ('true', '1', 'yes')
+                config[config_key] = env_value.lower() in ("true", "1", "yes")
             elif isinstance(config[config_key], int):
                 try:
                     config[config_key] = int(env_value)
@@ -242,14 +243,8 @@ def get_openrouter_config() -> Dict[str, Any]:
     """Get OpenRouter-specific configuration from environment variables."""
     return {
         "api_key": os.getenv("OPENROUTER_API_KEY"),
-        "base_url": os.getenv(
-            "OPENROUTER_BASE_URL",
-            "https://openrouter.ai/api/v1"
-        ),
-        "default_model": os.getenv(
-            "DEFAULT_MODEL", 
-            "deepseek/deepseek-v3.2"
-        ),
+        "base_url": os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+        "default_model": os.getenv("DEFAULT_MODEL", "deepseek/deepseek-v3.2"),
         "max_tokens": int(os.getenv("MAX_TOKENS", "4096")),
         "temperature": float(os.getenv("TEMPERATURE", "0.7")),
     }
@@ -258,18 +253,17 @@ def get_openrouter_config() -> Dict[str, Any]:
 def validate_config() -> None:
     """Validate that required configuration is present."""
     openrouter_config = get_openrouter_config()
-    
+
     if not openrouter_config["api_key"]:
         raise ValueError(
             "OPENROUTER_API_KEY environment variable is required. "
             "Please set it in your .env file."
         )
-    
+
     # Validate API key format (basic check)
     if len(openrouter_config["api_key"]) < 32:
         raise ValueError(
-            "OPENROUTER_API_KEY appears to be invalid. "
-            "Please check your API key."
+            "OPENROUTER_API_KEY appears to be invalid. " "Please check your API key."
         )
 
 
@@ -279,5 +273,5 @@ def get_application_config() -> Dict[str, Any]:
         "openrouter": get_openrouter_config(),
         "app": load_config(),
         "environment": os.getenv("ENVIRONMENT", "development"),
-        "debug": os.getenv("DEBUG", "false").lower() in ('true', '1', 'yes'),
+        "debug": os.getenv("DEBUG", "false").lower() in ("true", "1", "yes"),
     }

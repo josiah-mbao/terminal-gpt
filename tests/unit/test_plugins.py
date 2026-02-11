@@ -9,11 +9,13 @@ from terminal_gpt.domain.exceptions import PluginValidationError, PluginError
 
 class MockInput(BaseModel):
     """Mock input for testing."""
+
     value: str
 
 
 class MockOutput(BaseModel):
     """Mock output for testing."""
+
     result: str
 
 
@@ -66,9 +68,9 @@ class TestPlugin:
                             "description": "",
                         }
                     },
-                    "required": ["value"]
-                }
-            }
+                    "required": ["value"],
+                },
+            },
         }
 
         assert tool_def == expected

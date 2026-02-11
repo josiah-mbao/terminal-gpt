@@ -14,24 +14,31 @@ class TerminalGPTError(Exception):
 
 class ValidationError(TerminalGPTError):
     """Raised when input validation fails."""
+
     pass
 
 
 class ConversationError(TerminalGPTError):
     """Raised when conversation state is invalid."""
+
     pass
 
 
 class MessageError(TerminalGPTError):
     """Raised when message processing fails."""
+
     pass
 
 
 class PluginError(TerminalGPTError):
     """Raised when plugin execution fails."""
 
-    def __init__(self, message: str, plugin_name: Optional[str] = None,
-                 details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        plugin_name: Optional[str] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, details)
         self.plugin_name = plugin_name
 
@@ -39,8 +46,13 @@ class PluginError(TerminalGPTError):
 class LLMError(TerminalGPTError):
     """Raised when LLM API calls fail."""
 
-    def __init__(self, message: str, provider: Optional[str] = None,
-                 retryable: bool = False, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        provider: Optional[str] = None,
+        retryable: bool = False,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, details)
         self.provider = provider
         self.retryable = retryable
@@ -48,30 +60,39 @@ class LLMError(TerminalGPTError):
 
 class ConfigurationError(TerminalGPTError):
     """Raised when configuration is invalid or missing."""
+
     pass
 
 
 class ResourceLimitError(TerminalGPTError):
     """Raised when resource limits are exceeded."""
+
     pass
 
 
 class SessionError(TerminalGPTError):
     """Raised when session operations fail."""
+
     pass
 
 
 # Specific LLM-related errors
 class LLMAuthenticationError(LLMError):
     """Raised when LLM authentication fails."""
+
     pass
 
 
 class LLMQuotaExceededError(LLMError):
     """Raised when LLM quota/rate limits are exceeded."""
 
-    def __init__(self, message: str, provider: Optional[str] = None,
-                 retry_after: Optional[int] = None, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        provider: Optional[str] = None,
+        retry_after: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, provider, retryable=True, details=details)
         self.retry_after = retry_after
 
@@ -79,37 +100,50 @@ class LLMQuotaExceededError(LLMError):
 class LLMServiceUnavailableError(LLMError):
     """Raised when LLM service is temporarily unavailable."""
 
-    def __init__(self, message: str, provider: Optional[str] = None,
-                 details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        provider: Optional[str] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, provider, retryable=True, details=details)
 
 
 class LLMInvalidRequestError(LLMError):
     """Raised when LLM request is malformed."""
+
     pass
 
 
 class LLMContentFilterError(LLMError):
     """Raised when LLM content filter blocks the request."""
+
     pass
 
 
 # Specific plugin-related errors
 class PluginNotFoundError(PluginError):
     """Raised when a requested plugin is not found."""
+
     pass
 
 
 class PluginValidationError(PluginError):
     """Raised when plugin input/output validation fails."""
+
     pass
 
 
 class PluginExecutionError(PluginError):
     """Raised when plugin execution fails."""
 
-    def __init__(self, message: str, plugin_name: Optional[str] = None,
-                 exit_code: Optional[int] = None, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        plugin_name: Optional[str] = None,
+        exit_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, plugin_name, details)
         self.exit_code = exit_code
 
@@ -117,8 +151,13 @@ class PluginExecutionError(PluginError):
 class PluginTimeoutError(PluginError):
     """Raised when plugin execution times out."""
 
-    def __init__(self, message: str, plugin_name: Optional[str] = None,
-                 timeout_seconds: Optional[int] = None, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        plugin_name: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, plugin_name, details)
         self.timeout_seconds = timeout_seconds
 
@@ -126,22 +165,26 @@ class PluginTimeoutError(PluginError):
 # Conversation-specific errors
 class ConversationTooLongError(ConversationError):
     """Raised when conversation exceeds length limits."""
+
     pass
 
 
 class ConversationInvalidStateError(ConversationError):
     """Raised when conversation state becomes invalid."""
+
     pass
 
 
 # Message-specific errors
 class MessageTooLargeError(MessageError):
     """Raised when message content is too large."""
+
     pass
 
 
 class MessageInvalidFormatError(MessageError):
     """Raised when message format is invalid."""
+
     pass
 
 

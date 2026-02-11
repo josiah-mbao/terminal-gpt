@@ -15,8 +15,11 @@ from ..application.orchestrator import ConversationOrchestrator
 from ..infrastructure.llm_providers import create_llm_provider
 from ..infrastructure.logging import configure_logging, get_logger
 from ..domain.exceptions import (
-    TerminalGPTError, ValidationError, LLMError,
-    ConfigurationError, format_error_response
+    TerminalGPTError,
+    ValidationError,
+    LLMError,
+    ConfigurationError,
+    format_error_response,
 )
 from ..application.events import event_bus, publish_health_check
 from ..config import load_config, get_openrouter_config
@@ -35,7 +38,7 @@ def get_orchestrator() -> ConversationOrchestrator:
     if _orchestrator is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Chat service not initialized"
+            detail="Chat service not initialized",
         )
     return _orchestrator
 
@@ -43,14 +46,18 @@ def get_orchestrator() -> ConversationOrchestrator:
 # Pydantic models for API requests/responses
 class ChatRequest(BaseModel):
     """Request model for chat endpoint."""
+
     session_id: str = Field(..., description="Conversation session ID")
     message: str = Field(..., description="User message to process")
     model: Optional[str] = Field(None, description="LLM model to use")
-    temperature: Optional[float] = Field(None, description="Response creativity (0.0-1.0)")
+    temperature: Optional[float] = Field(
+        None, description="Response creativity (0.0-1.0)"
+    )
 
 
 class ChatResponse(BaseModel):
     """Response model for chat endpoint."""
+
     session_id: str
     reply: str
     status: str = Field(..., description="Response status: success, degraded, error")
@@ -61,6 +68,7 @@ class ChatResponse(BaseModel):
 
 class SessionInfo(BaseModel):
     """Session information response."""
+
     session_id: str
     message_count: int
     last_activity: datetime
@@ -69,6 +77,7 @@ class SessionInfo(BaseModel):
 
 class HealthResponse(BaseModel):
     """Health check response."""
+
     status: str  # "healthy", "degraded", "unhealthy"
     version: str
     services: Dict[str, str]
@@ -77,6 +86,7 @@ class HealthResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Standard error response."""
+
     error: Dict[str, Any]
 
 
@@ -86,7 +96,7 @@ app = FastAPI(
     description="AI-powered chat system with plugin support",
     version="0.1.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # Add CORS middleware
@@ -107,7 +117,7 @@ async def startup_event():
     try:
         # Register built-in plugins first
         register_builtin_plugins()
-        
+
         # Load configuration
         config = load_config()
 
@@ -123,9 +133,7 @@ async def startup_event():
         # Initialize LLM provider
         openrouter_config = get_openrouter_config()
         llm_provider = create_llm_provider(
-            "openrouter",
-            api_key,
-            model="anthropic/claude-3.5-sonnet"
+            "openrouter", api_key, model="anthropic/claude-3.5-sonnet"
         )
 
         # Initialize orchestrator with Juice's personality
@@ -134,7 +142,7 @@ async def startup_event():
             max_conversation_length=config["max_conversation_length"],
             sliding_window_size=config["sliding_window_size"],
             enable_summarization=config["enable_summarization"],
-            system_prompt=config["system_prompt"]
+            system_prompt=config["system_prompt"],
         )
 
         # Start event bus
@@ -173,7 +181,7 @@ async def terminal_gpt_exception_handler(request, exc: TerminalGPTError):
         "API error occurred",
         error_type=type(exc).__name__,
         error_message=str(exc),
-        path=request.url.path
+        path=request.url.path,
     )
 
     response_data = format_error_response(exc)
@@ -188,10 +196,7 @@ async def terminal_gpt_exception_handler(request, exc: TerminalGPTError):
     else:
         status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
 
-    return JSONResponse(
-        status_code=status_code,
-        content=response_data
-    )
+    return JSONResponse(status_code=status_code, content=response_data)
 
 
 @app.exception_handler(Exception)
@@ -201,7 +206,7 @@ async def general_exception_handler(request, exc: Exception):
         "Unexpected API error",
         error_type=type(exc).__name__,
         error_message=str(exc),
-        path=request.url.path
+        path=request.url.path,
     )
 
     return JSONResponse(
@@ -209,9 +214,9 @@ async def general_exception_handler(request, exc: Exception):
         content={
             "error": {
                 "type": "InternalServerError",
-                "message": "An unexpected error occurred"
+                "message": "An unexpected error occurred",
             }
-        }
+        },
     )
 
 
@@ -232,6 +237,7 @@ async def health_check():
     # Get version from package
     try:
         from .. import __version__
+
         version = __version__
     except ImportError:
         version = "unknown"
@@ -240,7 +246,7 @@ async def health_check():
         status=overall_status,
         version=version,
         services=services_status,
-        timestamp=datetime.utcnow()
+        timestamp=datetime.utcnow(),
     )
 
     # Publish health check event
@@ -253,7 +259,7 @@ async def health_check():
 async def chat(
     request: ChatRequest,
     background_tasks: BackgroundTasks,
-    orchestrator: ConversationOrchestrator = Depends(get_orchestrator)
+    orchestrator: ConversationOrchestrator = Depends(get_orchestrator),
 ):
     """Process a chat message and return AI response."""
     start_time = time.time()
@@ -262,13 +268,12 @@ async def chat(
         logger.info(
             "Chat request received",
             session_id=request.session_id,
-            message_length=len(request.message)
+            message_length=len(request.message),
         )
 
         # Process the message
         response_text = await orchestrator.process_user_message(
-            request.session_id,
-            request.message
+            request.session_id, request.message
         )
 
         processing_time_ms = int((time.time() - start_time) * 1000)
@@ -292,7 +297,7 @@ async def chat(
             "Chat response sent",
             session_id=request.session_id,
             response_length=len(response_text),
-            processing_time_ms=processing_time_ms
+            processing_time_ms=processing_time_ms,
         )
 
         return ChatResponse(
@@ -300,7 +305,7 @@ async def chat(
             reply=response_text,
             status=response_status,
             tokens_used=tokens_used,
-            processing_time_ms=processing_time_ms
+            processing_time_ms=processing_time_ms,
         )
 
     except LLMError:
@@ -311,7 +316,7 @@ async def chat(
             session_id=request.session_id,
             reply="I'm sorry, but I'm having trouble connecting to my AI services right now. Please try again in a moment.",
             status="degraded",
-            processing_time_ms=processing_time_ms
+            processing_time_ms=processing_time_ms,
         )
 
     except Exception as e:
@@ -322,20 +327,20 @@ async def chat(
             "Chat processing failed",
             session_id=request.session_id,
             error=str(e),
-            processing_time_ms=processing_time_ms
+            processing_time_ms=processing_time_ms,
         )
 
         return ChatResponse(
             session_id=request.session_id,
             reply="I'm sorry, but an unexpected error occurred. Please try again.",
             status="error",
-            processing_time_ms=processing_time_ms
+            processing_time_ms=processing_time_ms,
         )
 
 
 @app.get("/sessions", response_model=Dict[str, SessionInfo])
 async def list_sessions(
-    orchestrator: ConversationOrchestrator = Depends(get_orchestrator)
+    orchestrator: ConversationOrchestrator = Depends(get_orchestrator),
 ):
     """List all active conversation sessions."""
     summaries = orchestrator.list_conversations()
@@ -346,7 +351,7 @@ async def list_sessions(
             session_id=session_id,
             message_count=summary.message_count,
             last_activity=summary.last_activity,
-            created_at=summary.last_activity  # Would need to track separately in production
+            created_at=summary.last_activity,  # Would need to track separately in production
         )
 
     return sessions
@@ -354,8 +359,7 @@ async def list_sessions(
 
 @app.post("/sessions/{session_id}")
 async def create_session(
-    session_id: str,
-    orchestrator: ConversationOrchestrator = Depends(get_orchestrator)
+    session_id: str, orchestrator: ConversationOrchestrator = Depends(get_orchestrator)
 ):
     """Create a new conversation session."""
     try:
@@ -367,8 +371,7 @@ async def create_session(
 
 @app.delete("/sessions/{session_id}")
 async def end_session(
-    session_id: str,
-    orchestrator: ConversationOrchestrator = Depends(get_orchestrator)
+    session_id: str, orchestrator: ConversationOrchestrator = Depends(get_orchestrator)
 ):
     """End a conversation session."""
     await orchestrator.end_conversation(session_id)
@@ -376,9 +379,7 @@ async def end_session(
 
 
 @app.get("/stats")
-async def get_stats(
-    orchestrator: ConversationOrchestrator = Depends(get_orchestrator)
-):
+async def get_stats(orchestrator: ConversationOrchestrator = Depends(get_orchestrator)):
     """Get system statistics."""
     stats = orchestrator.get_stats()
     return stats
@@ -388,28 +389,27 @@ async def get_stats(
 async def chat_websocket(
     websocket: WebSocket,
     session_id: str,
-    orchestrator: ConversationOrchestrator = Depends(get_orchestrator)
+    orchestrator: ConversationOrchestrator = Depends(get_orchestrator),
 ):
     """WebSocket endpoint for real-time streaming chat responses."""
     await websocket.accept()
-    
+
     try:
         # Receive the user message
         message_data = await websocket.receive_json()
         user_message = message_data.get("message")
-        
+
         if not user_message:
-            await websocket.send_json({
-                "type": "error",
-                "error": "No message provided"
-            })
+            await websocket.send_json({"type": "error", "error": "No message provided"})
             return
 
         logger.info(
             "WebSocket chat request received",
             session_id=session_id,
             message_length=len(user_message),
-            message_preview=user_message[:50] + "..." if len(user_message) > 50 else user_message
+            message_preview=(
+                user_message[:50] + "..." if len(user_message) > 50 else user_message
+            ),
         )
 
         # Process the message with streaming
@@ -422,7 +422,7 @@ async def chat_websocket(
                 session_id, user_message
             ):
                 # Handle both LLMResponse objects and dictionary chunks
-                if hasattr(chunk, 'content'):
+                if hasattr(chunk, "content"):
                     # LLMResponse object
                     tools_used = chunk.tool_calls
                     response_data = {
@@ -431,7 +431,7 @@ async def chat_websocket(
                         "finish_reason": chunk.finish_reason,
                         "model": chunk.model,
                         "usage": chunk.usage,
-                        "tools_used": tools_used
+                        "tools_used": tools_used,
                     }
                 else:
                     # Dictionary chunk (from error handling)
@@ -442,7 +442,7 @@ async def chat_websocket(
                         "finish_reason": chunk.get("finish_reason"),
                         "model": chunk.get("model"),
                         "usage": chunk.get("usage"),
-                        "tools_used": tools_used
+                        "tools_used": tools_used,
                     }
 
                 # Log when tool calls are received
@@ -451,45 +451,42 @@ async def chat_websocket(
                     logger.info(
                         "Tool calls received",
                         session_id=session_id,
-                        tool_calls=tools_used
+                        tool_calls=tools_used,
                     )
 
                 await websocket.send_json(response_data)
 
             # Send completion message
             processing_time_ms = int((time.time() - start_time) * 1000)
-            await websocket.send_json({
-                "type": "complete",
-                "processing_time_ms": processing_time_ms
-            })
+            await websocket.send_json(
+                {"type": "complete", "processing_time_ms": processing_time_ms}
+            )
 
         except LLMError as e:
             # Handle LLM errors gracefully
-            await websocket.send_json({
-                "type": "error",
-                "error": "I'm having trouble connecting to my AI services right now. Please try again in a moment.",
-                "error_details": str(e)
-            })
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "error": "I'm having trouble connecting to my AI services right now. Please try again in a moment.",
+                    "error_details": str(e),
+                }
+            )
 
         except Exception as e:
             # Handle unexpected errors
             logger.error(
-                "WebSocket chat processing failed",
-                session_id=session_id,
-                error=str(e)
+                "WebSocket chat processing failed", session_id=session_id, error=str(e)
             )
-            
-            await websocket.send_json({
-                "type": "error",
-                "error": "An unexpected error occurred. Please try again.",
-                "error_details": str(e)
-            })
+
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "error": "An unexpected error occurred. Please try again.",
+                    "error_details": str(e),
+                }
+            )
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for session {session_id}")
     except Exception as e:
-        logger.error(
-            "WebSocket error",
-            session_id=session_id,
-            error=str(e)
-        )
+        logger.error("WebSocket error", session_id=session_id, error=str(e))

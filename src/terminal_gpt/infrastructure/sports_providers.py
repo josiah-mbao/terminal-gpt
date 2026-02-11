@@ -17,6 +17,7 @@ logger = get_logger("terminal_gpt.sports")
 # Unified Data Models
 class UnifiedGameScore(BaseModel):
     """Normalized game score across all sports."""
+
     home_team: str
     away_team: str
     home_score: Optional[int] = None
@@ -31,6 +32,7 @@ class UnifiedGameScore(BaseModel):
 
 class UnifiedPlayerStats(BaseModel):
     """Normalized player statistics across leagues."""
+
     name: str
     team: str
     position: Optional[str] = None
@@ -43,8 +45,8 @@ class UnifiedPlayerStats(BaseModel):
 
     # Additional stats
     rebounds: Optional[float] = None  # NBA
-    steals: Optional[float] = None    # NBA
-    blocks: Optional[float] = None    # NBA
+    steals: Optional[float] = None  # NBA
+    blocks: Optional[float] = None  # NBA
 
     # Game stats
     games_played: Optional[int] = None
@@ -56,6 +58,7 @@ class UnifiedPlayerStats(BaseModel):
 
 class UnifiedGameDetails(BaseModel):
     """Normalized game details and box score."""
+
     home_team: str
     away_team: str
     home_score: Optional[int] = None
@@ -80,6 +83,7 @@ class UnifiedGameDetails(BaseModel):
 @dataclass
 class CacheEntry:
     """Cache entry with TTL."""
+
     data: Any
     timestamp: float
     ttl_seconds: int
@@ -111,10 +115,7 @@ class MemoryCache:
 
     def clear_expired(self) -> None:
         """Remove all expired entries."""
-        expired_keys = [
-            key for key, entry in self._cache.items()
-            if entry.is_expired()
-        ]
+        expired_keys = [key for key, entry in self._cache.items() if entry.is_expired()]
         for key in expired_keys:
             del self._cache[key]
 
@@ -127,15 +128,14 @@ class SportsDataProvider(ABC):
     """Abstract base class for sports data providers."""
 
     def __init__(self, base_url: str, api_key: Optional[str] = None):
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self._client: Optional[httpx.AsyncClient] = None
         self.name = self.__class__.__name__
 
     async def __aenter__(self):
         self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(10.0, read=30.0),
-            headers=self._get_headers()
+            timeout=httpx.Timeout(10.0, read=30.0), headers=self._get_headers()
         )
         return self
 
@@ -145,10 +145,7 @@ class SportsDataProvider(ABC):
 
     def _get_headers(self) -> Dict[str, str]:
         """Get HTTP headers for API requests."""
-        headers = {
-            "User-Agent": "TerminalGPT-Sports/1.0",
-            "Accept": "application/json"
-        }
+        headers = {"User-Agent": "TerminalGPT-Sports/1.0", "Accept": "application/json"}
         if self.api_key:
             headers["X-Auth-Token"] = self.api_key
         return headers
@@ -159,7 +156,9 @@ class SportsDataProvider(ABC):
         pass
 
     @abstractmethod
-    async def get_player_stats(self, player_name: str, league: str) -> Optional[UnifiedPlayerStats]:
+    async def get_player_stats(
+        self, player_name: str, league: str
+    ) -> Optional[UnifiedPlayerStats]:
         """Get stats for a specific player."""
         pass
 
@@ -182,15 +181,14 @@ class TheSportsDBProvider(SportsDataProvider):
 
         try:
             # Map league names to TheSportsDB format
-            league_map = {
-                "EPL": "English Premier League",
-                "NBA": "NBA"
-            }
+            league_map = {"EPL": "English Premier League", "NBA": "NBA"}
 
             league_name = league_map.get(league, league)
 
             # Get live scores
-            response = await self._client.get("/events/last.json?l=1")  # Last event per league
+            response = await self._client.get(
+                "/events/last.json?l=1"
+            )  # Last event per league
 
             if response.status_code != 200:
                 logger.warning(f"TheSportsDB API error: {response.status_code}")
@@ -205,13 +203,25 @@ class TheSportsDBProvider(SportsDataProvider):
                     score = UnifiedGameScore(
                         home_team=event.get("strHomeTeam", ""),
                         away_team=event.get("strAwayTeam", ""),
-                        home_score=int(event.get("intHomeScore", 0)) if event.get("intHomeScore") else None,
-                        away_score=int(event.get("intAwayScore", 0)) if event.get("intAwayScore") else None,
-                        status="finished" if event.get("intHomeScore") is not None else "scheduled",
+                        home_score=(
+                            int(event.get("intHomeScore", 0))
+                            if event.get("intHomeScore")
+                            else None
+                        ),
+                        away_score=(
+                            int(event.get("intAwayScore", 0))
+                            if event.get("intAwayScore")
+                            else None
+                        ),
+                        status=(
+                            "finished"
+                            if event.get("intHomeScore") is not None
+                            else "scheduled"
+                        ),
                         league=league,
                         start_time=event.get("dateEvent"),
                         venue=event.get("strVenue"),
-                        api_source="thesportsdb"
+                        api_source="thesportsdb",
                     )
                     scores.append(score)
 
@@ -221,7 +231,9 @@ class TheSportsDBProvider(SportsDataProvider):
             logger.error(f"TheSportsDB get_scores error: {e}")
             return []
 
-    async def get_player_stats(self, player_name: str, league: str) -> Optional[UnifiedPlayerStats]:
+    async def get_player_stats(
+        self, player_name: str, league: str
+    ) -> Optional[UnifiedPlayerStats]:
         """Get player stats from TheSportsDB."""
         if not self._client:
             raise RuntimeError("Provider not initialized")
@@ -248,7 +260,7 @@ class TheSportsDBProvider(SportsDataProvider):
                 team=player.get("strTeam", ""),
                 position=player.get("strPosition", ""),
                 league=league,
-                api_source="thesportsdb"
+                api_source="thesportsdb",
             )
 
             return stats
@@ -279,13 +291,23 @@ class TheSportsDBProvider(SportsDataProvider):
             details = UnifiedGameDetails(
                 home_team=event.get("strHomeTeam", ""),
                 away_team=event.get("strAwayTeam", ""),
-                home_score=int(event.get("intHomeScore", 0)) if event.get("intHomeScore") else None,
-                away_score=int(event.get("intAwayScore", 0)) if event.get("intAwayScore") else None,
-                status="finished" if event.get("intHomeScore") is not None else "scheduled",
+                home_score=(
+                    int(event.get("intHomeScore", 0))
+                    if event.get("intHomeScore")
+                    else None
+                ),
+                away_score=(
+                    int(event.get("intAwayScore", 0))
+                    if event.get("intAwayScore")
+                    else None
+                ),
+                status=(
+                    "finished" if event.get("intHomeScore") is not None else "scheduled"
+                ),
                 league=event.get("strLeague", ""),
                 start_time=event.get("dateEvent"),
                 venue=event.get("strVenue"),
-                api_source="thesportsdb"
+                api_source="thesportsdb",
             )
 
             return details
@@ -325,13 +347,21 @@ class FootballDataProvider(SportsDataProvider):
                 score = UnifiedGameScore(
                     home_team=match["homeTeam"]["name"],
                     away_team=match["awayTeam"]["name"],
-                    home_score=match["score"]["fullTime"]["home"] if match["score"]["fullTime"]["home"] is not None else None,
-                    away_score=match["score"]["fullTime"]["away"] if match["score"]["fullTime"]["away"] is not None else None,
+                    home_score=(
+                        match["score"]["fullTime"]["home"]
+                        if match["score"]["fullTime"]["home"] is not None
+                        else None
+                    ),
+                    away_score=(
+                        match["score"]["fullTime"]["away"]
+                        if match["score"]["fullTime"]["away"] is not None
+                        else None
+                    ),
                     status=match["status"].lower(),
                     league="EPL",
                     start_time=match["utcDate"],
                     venue=match.get("venue"),
-                    api_source="football-data"
+                    api_source="football-data",
                 )
                 scores.append(score)
 
@@ -341,7 +371,9 @@ class FootballDataProvider(SportsDataProvider):
             logger.error(f"Football-Data get_scores error: {e}")
             return []
 
-    async def get_player_stats(self, player_name: str, league: str) -> Optional[UnifiedPlayerStats]:
+    async def get_player_stats(
+        self, player_name: str, league: str
+    ) -> Optional[UnifiedPlayerStats]:
         """Football-Data player stats - limited free tier."""
         # Free tier has limited player data, so we'll use TheSportsDB as primary
         return None
@@ -352,7 +384,9 @@ class FootballDataProvider(SportsDataProvider):
             raise RuntimeError("Provider not initialized")
 
         try:
-            response = await self._client.get(f"https://api.football-data.org/v4/matches/{game_id}")
+            response = await self._client.get(
+                f"https://api.football-data.org/v4/matches/{game_id}"
+            )
 
             if response.status_code != 200:
                 return None
@@ -368,7 +402,7 @@ class FootballDataProvider(SportsDataProvider):
                 league="EPL",
                 start_time=match["utcDate"],
                 venue=match.get("venue"),
-                api_source="football-data"
+                api_source="football-data",
             )
 
             return details
@@ -419,13 +453,22 @@ class NBAApiProvider(SportsDataProvider):
                 score = UnifiedGameScore(
                     home_team=game["hTeam"]["fullName"],
                     away_team=game["vTeam"]["fullName"],
-                    home_score=int(game["hTeam"]["score"]) if game["hTeam"]["score"] else None,
-                    away_score=int(game["vTeam"]["score"]) if game["vTeam"]["score"] else None,
-                    status="finished" if game.get("isGameActivated") == False and game["hTeam"]["score"] else "live" if game.get("isGameActivated") else "scheduled",
+                    home_score=(
+                        int(game["hTeam"]["score"]) if game["hTeam"]["score"] else None
+                    ),
+                    away_score=(
+                        int(game["vTeam"]["score"]) if game["vTeam"]["score"] else None
+                    ),
+                    status=(
+                        "finished"
+                        if game.get("isGameActivated") == False
+                        and game["hTeam"]["score"]
+                        else "live" if game.get("isGameActivated") else "scheduled"
+                    ),
                     league="NBA",
                     start_time=game.get("startTimeUTC"),
                     venue=game.get("arena", {}).get("name"),
-                    api_source="nba-api"
+                    api_source="nba-api",
                 )
                 scores.append(score)
 
@@ -435,7 +478,9 @@ class NBAApiProvider(SportsDataProvider):
             logger.error(f"NBA API get_scores error: {e}")
             return []
 
-    async def get_player_stats(self, player_name: str, league: str) -> Optional[UnifiedPlayerStats]:
+    async def get_player_stats(
+        self, player_name: str, league: str
+    ) -> Optional[UnifiedPlayerStats]:
         """Get NBA player stats from official API."""
         if league != "NBA":
             return None
@@ -466,14 +511,14 @@ class NBAApiProvider(SportsDataProvider):
 
             # Get player stats (would need additional API calls for full stats)
             # For now, return basic player info
-            first_name = matching_player['firstName']
-            last_name = matching_player['lastName']
+            first_name = matching_player["firstName"]
+            last_name = matching_player["lastName"]
             stats = UnifiedPlayerStats(
                 name=f"{first_name} {last_name}",
                 team=matching_player.get("teamId", "Unknown"),
                 position=matching_player.get("pos"),
                 league="NBA",
-                api_source="nba-api"
+                api_source="nba-api",
             )
 
             return stats
@@ -510,7 +555,7 @@ class SportsDataManager:
         self.providers = {
             "thesportsdb": thesportsdb_provider,
             "football-data": football_data_provider,
-            "nba-api": nba_api_provider
+            "nba-api": nba_api_provider,
         }
 
     async def get_scores(self, league: str) -> List[UnifiedGameScore]:
@@ -548,7 +593,9 @@ class SportsDataManager:
 
         return scores
 
-    async def get_player_stats(self, player_name: str, league: str) -> Optional[UnifiedPlayerStats]:
+    async def get_player_stats(
+        self, player_name: str, league: str
+    ) -> Optional[UnifiedPlayerStats]:
         """Get player stats with caching and fallback."""
         cache_key = f"player_{player_name}_{league}"
 
@@ -591,7 +638,11 @@ class SportsDataManager:
             return cached
 
         # Try all providers
-        for provider in [football_data_provider, nba_api_provider, thesportsdb_provider]:
+        for provider in [
+            football_data_provider,
+            nba_api_provider,
+            thesportsdb_provider,
+        ]:
             try:
                 async with provider:
                     details = await provider.get_game_details(game_id)
@@ -617,5 +668,5 @@ __all__ = [
     "sports_data_manager",
     "TheSportsDBProvider",
     "FootballDataProvider",
-    "NBAApiProvider"
+    "NBAApiProvider",
 ]

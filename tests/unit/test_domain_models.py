@@ -18,7 +18,7 @@ class TestMessage:
         assert msg.content == "Hello world"
         assert msg.name is None
         assert isinstance(msg.timestamp, datetime)
-        assert msg.model_config.get('frozen') is True
+        assert msg.model_config.get("frozen") is True
 
     def test_message_immutability(self):
         """Test that messages are immutable."""
@@ -186,7 +186,7 @@ class TestConversationSummary:
             session_id="test",
             message_count=5,
             last_activity=datetime.utcnow(),
-            total_tokens_estimate=150
+            total_tokens_estimate=150,
         )
 
         assert summary.session_id == "test"
