@@ -15,7 +15,6 @@ from terminal_gpt.domain.exceptions import (
     LLMServiceUnavailableError,
 )
 from terminal_gpt.infrastructure.llm_providers import (
-    LLMProvider,
     LLMResponse,
     OpenRouterProvider,
     create_llm_provider,

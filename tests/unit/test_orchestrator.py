@@ -1,6 +1,5 @@
 """Unit tests for conversation orchestrator."""
 
-from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -406,7 +405,7 @@ class TestConversationOrchestrator:
         ) as mock_publish:
             try:
                 await orchestrator.process_user_message(session_id, "Hello")
-            except:
+            except Exception:
                 pass  # Expected to raise
 
             # Should have published error event
