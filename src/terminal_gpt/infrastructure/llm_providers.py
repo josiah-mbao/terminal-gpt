@@ -419,7 +419,11 @@ class OpenRouterProvider(LLMProvider):
         raise last_exception or LLMError("All retry attempts exhausted")
 
     async def _parse_stream_response(self, response: httpx.Response) -> AsyncGenerator[LLMResponse, None]:
-        """Parse OpenRouter streaming response."""
+        """Parse OpenRouter streaming response with tool call accumulation."""
+        
+        # Buffer for accumulating fragmented tool calls across chunks
+        # Keyed by tool call index to handle multiple parallel tool calls
+        tool_call_buffers: Dict[int, Dict[str, Any]] = {}
         
         async for line in response.aiter_lines():
             if not line:
@@ -448,29 +452,62 @@ class OpenRouterProvider(LLMProvider):
                     content = delta.get("content", "")
                     finish_reason = choice.get("finish_reason")
                     
-                    # Extract tool calls if present
-                    tool_calls = None
+                    # Accumulate tool calls from delta
                     if "tool_calls" in delta and delta["tool_calls"]:
-                        tool_calls = [
-                            {
-                                "id": tc["id"],
-                                "type": tc["type"],
-                                "function": {
-                                    "name": tc["function"]["name"],
-                                    "arguments": tc["function"]["arguments"]
+                        for tc in delta["tool_calls"]:
+                            idx = tc.get("index", 0)
+                            
+                            # Initialize buffer for this tool call index if not exists
+                            if idx not in tool_call_buffers:
+                                tool_call_buffers[idx] = {
+                                    "id": tc.get("id", f"call_{idx}_{int(time.time() * 1000)}"),
+                                    "type": tc.get("type", "function"),
+                                    "function": {
+                                        "name": "",
+                                        "arguments": ""
+                                    }
                                 }
-                            }
-                            for tc in delta["tool_calls"]
-                        ]
+                            
+                            # Accumulate function name and arguments incrementally
+                            fn = tc.get("function", {})
+                            if "name" in fn:
+                                tool_call_buffers[idx]["function"]["name"] = fn["name"]
+                            if "arguments" in fn:
+                                tool_call_buffers[idx]["function"]["arguments"] += fn["arguments"]
 
-                    # Yield chunk if it has content or is the final chunk
-                    if content or finish_reason:
+                    # Yield chunk if it has content
+                    if content:
                         yield LLMResponse(
                             content=content,
                             model=parsed_data.get("model", self.model),
+                            finish_reason=None,  # Don't signal finish until we know it's complete
+                            usage=parsed_data.get("usage"),
+                            tool_calls=None  # Don't yield partial tool calls
+                        )
+                    
+                    # When finish_reason is tool_calls, yield the complete accumulated tool calls
+                    if finish_reason == "tool_calls":
+                        if tool_call_buffers:
+                            yield LLMResponse(
+                                content="",
+                                model=parsed_data.get("model", self.model),
+                                finish_reason=finish_reason,
+                                usage=parsed_data.get("usage"),
+                                tool_calls=list(tool_call_buffers.values())
+                            )
+                        else:
+                            # Unexpected: finish_reason is tool_calls but no tool calls accumulated
+                            logger.warning(
+                                "finish_reason is 'tool_calls' but no tool calls were accumulated"
+                            )
+                    elif finish_reason:
+                        # Other finish reasons (stop, length, etc.)
+                        yield LLMResponse(
+                            content="",
+                            model=parsed_data.get("model", self.model),
                             finish_reason=finish_reason,
                             usage=parsed_data.get("usage"),
-                            tool_calls=tool_calls
+                            tool_calls=None
                         )
 
                 except json.JSONDecodeError:

@@ -6,11 +6,10 @@ This module contains the core plugins that ship with Terminal GPT.
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
-import httpx
-import json
 
 from ..domain.plugins import Plugin
 from ..domain.exceptions import PluginError
+from ..infrastructure.sports_providers import sports_data_manager
 
 
 class ReadFileInput(BaseModel):
@@ -394,89 +393,6 @@ class GameDetailsPlugin(Plugin):
             raise PluginError(f"Failed to get game details: {e}")
 
 
-class WeatherInput(BaseModel):
-    """Input schema for get_weather plugin."""
-    location: str = Field(..., description="City name, coordinates, or postal code")
-    units: str = Field("metric", description="Temperature units: 'metric', 'imperial', or 'kelvin'")
-
-
-class WeatherOutput(BaseModel):
-    """Output schema for get_weather plugin."""
-    location: str = Field(..., description="Location name")
-    temperature: float = Field(..., description="Current temperature")
-    feels_like: float = Field(..., description="Feels like temperature")
-    humidity: int = Field(..., description="Humidity percentage")
-    description: str = Field(..., description="Weather condition description")
-    wind_speed: float = Field(..., description="Wind speed")
-    units: str = Field(..., description="Temperature units used")
-
-
-class GetWeatherPlugin(Plugin):
-    """Plugin for getting current weather information."""
-
-    name = "get_weather"
-    description = "Get current weather information for any location worldwide"
-    input_model = WeatherInput
-    output_model = WeatherOutput
-
-    async def run(self, input_data: WeatherInput) -> WeatherOutput:
-        """Get current weather for the specified location."""
-        try:
-            # Validate units parameter
-            valid_units = ["metric", "imperial", "kelvin"]
-            if input_data.units not in valid_units:
-                raise PluginError(f"Invalid units: {input_data.units}. Use 'metric', 'imperial', or 'kelvin'")
-
-            # Use OpenWeatherMap API (free tier)
-            api_key = "YOUR_API_KEY"  # This should be configured via environment variable
-            if api_key == "YOUR_API_KEY":
-                raise PluginError("Weather API key not configured. Please set OPENWEATHER_API_KEY environment variable.")
-
-            # Build API URL
-            base_url = "http://api.openweathermap.org/data/2.5/weather"
-            params = {
-                "q": input_data.location,
-                "units": input_data.units,
-                "appid": api_key
-            }
-
-            # Make HTTP request with timeout
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(base_url, params=params)
-
-            if response.status_code == 404:
-                raise PluginError(f"Location not found: {input_data.location}")
-            elif response.status_code != 200:
-                raise PluginError(f"API error: {response.status_code} - {response.text}")
-
-            # Parse response
-            data = response.json()
-
-            # Extract weather information
-            weather_data = data["weather"][0]
-            main_data = data["main"]
-            wind_data = data.get("wind", {})
-
-            return WeatherOutput(
-                location=f"{data['name']}, {data['sys']['country']}",
-                temperature=main_data["temp"],
-                feels_like=main_data["feels_like"],
-                humidity=main_data["humidity"],
-                description=weather_data["description"].title(),
-                wind_speed=wind_data.get("speed", 0.0),
-                units=input_data.units
-            )
-
-        except httpx.RequestError as e:
-            raise PluginError(f"Network error while fetching weather: {e}")
-        except json.JSONDecodeError:
-            raise PluginError("Invalid response from weather service")
-        except KeyError as e:
-            raise PluginError(f"Missing data in weather response: {e}")
-        except Exception as e:
-            raise PluginError(f"Failed to get weather for {input_data.location}: {e}")
-
-
 # Export all built-in plugins
 __all__ = [
     'ReadFilePlugin',
@@ -486,24 +402,34 @@ __all__ = [
     'SportsScoresPlugin',
     'PlayerStatsPlugin',
     'GameDetailsPlugin',
-    'GetWeatherPlugin',
 ]
 
 
 # Auto-register all built-in plugins
 def register_builtin_plugins():
-    """Register all built-in plugins with the global plugin registry."""
+    """Register all built-in plugins with the global plugin registry.
+    
+    This function is idempotent - it won't register plugins that are
+    already registered. Safe to call multiple times.
+    """
     from ..domain.plugins import plugin_registry
     
-    # Register each plugin
-    plugin_registry.register(ReadFilePlugin())
-    plugin_registry.register(WriteFilePlugin())
-    plugin_registry.register(ListDirectoryPlugin())
-    plugin_registry.register(CalculatorPlugin())
-    plugin_registry.register(SportsScoresPlugin())
-    plugin_registry.register(PlayerStatsPlugin())
-    plugin_registry.register(GameDetailsPlugin())
-    plugin_registry.register(GetWeatherPlugin())
+    plugins = [
+        ReadFilePlugin(),
+        WriteFilePlugin(),
+        ListDirectoryPlugin(),
+        CalculatorPlugin(),
+        SportsScoresPlugin(),
+        PlayerStatsPlugin(),
+        GameDetailsPlugin(),
+    ]
+    
+    for plugin in plugins:
+        # Skip if already registered
+        if plugin_registry.has_plugin(plugin.name):
+            continue
+        # Register new plugins
+        plugin_registry.register(plugin)
 
 
 # Auto-register plugins when module is imported

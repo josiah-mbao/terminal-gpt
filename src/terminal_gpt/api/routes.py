@@ -1,5 +1,6 @@
 """FastAPI routes for Terminal GPT."""
 
+import os
 import time
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -18,7 +19,8 @@ from ..domain.exceptions import (
     ConfigurationError, format_error_response
 )
 from ..application.events import event_bus, publish_health_check
-from ..config import load_config
+from ..config import load_config, get_openrouter_config
+from ..infrastructure.builtin_plugins import register_builtin_plugins
 
 # Configure logging
 configure_logging()
@@ -103,11 +105,13 @@ async def startup_event():
     global _orchestrator
 
     try:
+        # Register built-in plugins first
+        register_builtin_plugins()
+        
         # Load configuration
         config = load_config()
 
         # Load API key from environment
-        import os
         api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
             raise ConfigurationError(
@@ -117,10 +121,11 @@ async def startup_event():
             )
 
         # Initialize LLM provider
+        openrouter_config = get_openrouter_config()
         llm_provider = create_llm_provider(
             "openrouter",
             api_key,
-            model=config.get("openrouter", {}).get("default_model", "arcee-ai/trinity-large-preview:free")
+            model="anthropic/claude-3.5-sonnet"
         )
 
         # Initialize orchestrator with Juice's personality
@@ -409,7 +414,8 @@ async def chat_websocket(
 
         # Process the message with streaming
         start_time = time.time()
-        
+        tool_calls_logged = []
+
         try:
             # Get the streaming response from orchestrator
             async for chunk in orchestrator.process_user_message_stream(
@@ -418,24 +424,36 @@ async def chat_websocket(
                 # Handle both LLMResponse objects and dictionary chunks
                 if hasattr(chunk, 'content'):
                     # LLMResponse object
+                    tools_used = chunk.tool_calls
                     response_data = {
                         "type": "chunk",
                         "content": chunk.content,
                         "finish_reason": chunk.finish_reason,
                         "model": chunk.model,
                         "usage": chunk.usage,
-                        "tools_used": chunk.tool_calls
+                        "tools_used": tools_used
                     }
                 else:
                     # Dictionary chunk (from error handling)
+                    tools_used = chunk.get("tool_calls")
                     response_data = {
                         "type": "chunk",
                         "content": chunk.get("content", ""),
                         "finish_reason": chunk.get("finish_reason"),
                         "model": chunk.get("model"),
                         "usage": chunk.get("usage"),
-                        "tools_used": chunk.get("tool_calls")
+                        "tools_used": tools_used
                     }
+
+                # Log when tool calls are received
+                if tools_used and tools_used not in tool_calls_logged:
+                    tool_calls_logged.append(tools_used)
+                    logger.info(
+                        "Tool calls received",
+                        session_id=session_id,
+                        tool_calls=tools_used
+                    )
+
                 await websocket.send_json(response_data)
 
             # Send completion message

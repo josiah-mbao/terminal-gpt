@@ -18,6 +18,25 @@ from ..infrastructure.context_summarizer import ContextSummarizer
 
 logger = get_logger("terminal_gpt.orchestrator")
 
+# Terminal intents that should short-circuit tool calling
+TERMINAL_INTENTS = {
+    "quit", "exit", "bye", "goodbye", "thanks", "thank you",
+    "no", "stop", "end", "close", "later", "see ya", "cya"
+}
+
+
+def is_terminal_intent(message: str) -> bool:
+    """Check if user message is a terminal/farewell intent."""
+    normalized = message.lower().strip().rstrip("!.")
+    # Check exact match or if message starts with terminal phrase
+    if normalized in TERMINAL_INTENTS:
+        return True
+    # Check for phrases like "thanks a bunch", "thanks anyway"
+    for intent in TERMINAL_INTENTS:
+        if normalized.startswith(intent):
+            return True
+    return False
+
 
 class ConversationOrchestrator:
     """Orchestrates intelligent conversations between users, LLMs, and plugins."""
@@ -142,6 +161,57 @@ class ConversationOrchestrator:
 
             conversation = self._conversations[session_id]
 
+            # Check for terminal intent BEFORE adding message or calling LLM
+            if is_terminal_intent(user_content):
+                logger.info(
+                    "Terminal intent detected, skipping tool calls",
+                    session_id=session_id,
+                    user_content=user_content
+                )
+                # Reset tool cycle and mark awaiting user
+                conversation = conversation.copy(
+                    update={
+                        'tool_cycle_count': 0,
+                        'awaiting_user': True,
+                        'active_task': None
+                    }
+                )
+                # Add user message
+                user_message = Message(role="user", content=user_content)
+                conversation = conversation.add_message(user_message)
+                
+                # Yield a simple farewell response
+                farewell_responses = [
+                    "👋 Catch you later!",
+                    "No worries, talk soon!",
+                    "All good, see ya!",
+                    "Later! Hit me up if you need anything."
+                ]
+                import random
+                farewell = random.choice(farewell_responses)
+                
+                yield {
+                    "content": farewell,
+                    "finish_reason": "stop",
+                    "model": "terminal-gpt",
+                    "usage": {},
+                    "tool_calls": []
+                }
+                
+                # Add assistant response to conversation
+                assistant_message = Message(role="assistant", content=farewell)
+                conversation = conversation.add_message(assistant_message)
+                self._conversations[session_id] = conversation
+                return
+
+            # Reset tool cycle count for new user turn
+            conversation = conversation.copy(
+                update={
+                    'tool_cycle_count': 0,
+                    'awaiting_user': False
+                }
+            )
+
             # Add user message
             user_message = Message(role="user", content=user_content)
             conversation = conversation.add_message(user_message)
@@ -248,22 +318,38 @@ class ConversationOrchestrator:
         return "I'm sorry, but this conversation has become too complex. Please start a new conversation."
 
     async def _generate_assistant_response_stream(self, conversation: ConversationState):
-        """Generate an assistant response with streaming, potentially involving tool calls."""
-        max_iterations = 5  # Prevent infinite loops
+        """Generate an assistant response with streaming, potentially involving tool calls.
+        
+        Enforces one tool cycle per user message to prevent runaway loops.
+        """
+        max_iterations = 3  # Reduced from 5 - one tool cycle + final answer max
         current_iteration = 0
+        has_completed_tool_cycle = False
 
         while current_iteration < max_iterations:
             current_iteration += 1
 
+            # Enforce one tool cycle limit
+            if has_completed_tool_cycle:
+                logger.info(
+                    "Tool cycle already completed, forcing final answer",
+                    session_id=conversation.session_id
+                )
+                # Disable tools for final answer
+                tools = None
+            else:
+                tools = self._get_available_tools()
+
             # Prepare context for LLM
             messages = self._prepare_context_messages(conversation)
-            tools = self._get_available_tools()
 
             try:
                 # Generate LLM response with streaming
                 start_time = time.time()
+                full_response = ""
+                tool_calls_found = None
+
                 async with self.llm_provider:
-                    # Use streaming generation
                     async for chunk in self.llm_provider.generate_stream(
                         messages=messages,
                         tools=tools,
@@ -272,27 +358,84 @@ class ConversationOrchestrator:
                             "max_tokens": 4096
                         }
                     ):
+                        # Yield the chunk for UI display
                         yield chunk
+                        full_response += chunk.content
+
+                        # Capture tool calls if present
+                        if chunk.tool_calls and tool_calls_found is None:
+                            tool_calls_found = chunk.tool_calls
 
                 duration_ms = int((time.time() - start_time) * 1000)
 
                 logger.info(
                     "LLM streaming response completed",
                     session_id=conversation.session_id,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
+                    has_tool_calls=tool_calls_found is not None
                 )
 
-                # Note: For streaming, we don't handle tool calls in the same way
-                # as the non-streaming version. Tool calls would need to be handled
-                # differently in a streaming context, potentially by pausing the
-                # stream and resuming after tool execution. For now, we'll let the
-                # LLM handle tool calls in its response without streaming the tool
-                # results.
+                # Handle tool calls if found
+                if tool_calls_found:
+                    logger.info(
+                        "Tool calls detected in streaming response",
+                        session_id=conversation.session_id,
+                        tool_count=len(tool_calls_found)
+                    )
 
-                # For now, we'll break after the first streaming response
-                # In a more sophisticated implementation, you might want to
-                # handle tool calls differently in streaming mode
-                break
+                    # CRITICAL: First add assistant message with tool_calls to conversation
+                    # This establishes the linkage for the tool results
+                    assistant_tool_message = Message(
+                        role="assistant",
+                        content=full_response if full_response else None,
+                        tool_calls=tool_calls_found
+                    )
+                    conversation = conversation.add_message(assistant_tool_message)
+
+                    # Execute tool calls
+                    tool_results = await self._execute_tool_calls(
+                        conversation.session_id,
+                        tool_calls_found
+                    )
+
+                    # Add tool results to conversation with tool_call_id linkage
+                    for tool_result in tool_results:
+                        # Validate tool_call_id exists - fail loudly if missing
+                        tool_call_id = tool_result.get("tool_call_id")
+                        if not tool_call_id:
+                            logger.error(
+                                "CRITICAL: tool_call_id is missing from tool result",
+                                session_id=conversation.session_id,
+                                tool_name=tool_result["tool_name"]
+                            )
+                            raise LLMError(
+                                f"tool_call_id is required but missing for tool: "
+                                f"{tool_result['tool_name']}"
+                            )
+
+                        tool_message = Message(
+                            role="tool",
+                            content=tool_result["result"],
+                            name=tool_result["tool_name"],
+                            tool_call_id=tool_call_id
+                        )
+                        conversation = conversation.add_message(tool_message)
+
+                    # Mark that we've completed a tool cycle
+                    has_completed_tool_cycle = True
+                    
+                    # Continue the loop to get final response after tool execution
+                    continue
+                else:
+                    # No tool calls, add assistant response to conversation
+                    if full_response:
+                        assistant_message = Message(
+                            role="assistant",
+                            content=full_response
+                        )
+                        conversation = conversation.add_message(assistant_message)
+                    # Streaming is complete
+                    break
 
             except LLMError as e:
                 logger.error(
@@ -302,8 +445,6 @@ class ConversationOrchestrator:
                     error_type=type(e).__name__,
                     iteration=current_iteration
                 )
-                # For now, return a helpful error message
-                # In production, you might want different strategies
                 yield {
                     "content": (
                         "I apologize, but I'm having trouble generating a "
@@ -316,7 +457,7 @@ class ConversationOrchestrator:
                 }
                 break
 
-                # Max iterations reached
+        # Max iterations reached
         if current_iteration >= max_iterations:
             logger.warning(
                 "Max iterations reached in streaming conversation",
@@ -335,63 +476,103 @@ class ConversationOrchestrator:
             }
 
     def _prepare_context_messages(self, conversation: ConversationState) -> List[Dict[str, Any]]:
-        """Prepare messages for LLM context, managing sliding window."""
+        """Prepare messages for LLM context, managing sliding window.
+        
+        Properly formats tool calling messages with tool_calls and tool_call_id.
+        """
         all_messages = conversation.messages
 
         # If conversation is within sliding window, use all messages
         if len(all_messages) <= self.sliding_window_size:
-            return [
-                {"role": msg.role, "content": msg.content}
-                for msg in all_messages
-            ]
+            selected_messages = all_messages
+        else:
+            # Use sliding window approach
+            # Always include system message if present
+            context_messages = []
+            regular_messages = []
 
-        # Use sliding window approach
-        # Always include system message if present
-        context_messages = []
-        regular_messages = []
+            for msg in all_messages:
+                if msg.role == "system":
+                    context_messages.append(msg)
+                else:
+                    regular_messages.append(msg)
 
-        for msg in all_messages:
-            if msg.role == "system":
-                context_messages.append(msg)
+            # Take most recent messages within window size
+            recent_messages = regular_messages[-self.sliding_window_size:]
+
+            # Combine system messages with recent conversation
+            selected_messages = context_messages + recent_messages
+
+            logger.info(
+                "Using sliding window context",
+                session_id=conversation.session_id,
+                total_messages=len(all_messages),
+                context_messages=len(selected_messages)
+            )
+
+        # Format messages for LLM API, including tool calling fields
+        formatted_messages = []
+        for msg in selected_messages:
+            formatted_msg: Dict[str, Any] = {"role": msg.role}
+            
+            # Handle content (can be None for assistant with tool_calls)
+            if msg.content is not None:
+                formatted_msg["content"] = msg.content
             else:
-                regular_messages.append(msg)
+                formatted_msg["content"] = None
+            
+            # Include tool_calls for assistant messages
+            if msg.role == "assistant" and msg.tool_calls is not None:
+                formatted_msg["tool_calls"] = msg.tool_calls
+            
+            # Include tool_call_id and name for tool messages
+            if msg.role == "tool":
+                if msg.tool_call_id:
+                    formatted_msg["tool_call_id"] = msg.tool_call_id
+                if msg.name:
+                    formatted_msg["name"] = msg.name
+            
+            formatted_messages.append(formatted_msg)
 
-        # Take most recent messages within window size
-        recent_messages = regular_messages[-self.sliding_window_size:]
-
-        # Combine system messages with recent conversation
-        final_messages = context_messages + recent_messages
-
-        logger.info(
-            "Using sliding window context",
-            session_id=conversation.session_id,
-            total_messages=len(all_messages),
-            context_messages=len(final_messages)
-        )
-
-        return [
-            {"role": msg.role, "content": msg.content}
-            for msg in final_messages
-        ]
+        return formatted_messages
 
     def _get_available_tools(self) -> List[Dict[str, Any]]:
         """Get tool definitions for available plugins."""
-        return plugin_registry.list_tools()
+        tools = plugin_registry.list_tools()
+        logger.info(
+            "Available tools for LLM",
+            tool_count=len(tools),
+            tool_names=[t.get("function", {}).get("name", "unknown") for t in tools]
+        )
+        return tools
 
     async def _execute_tool_calls(
         self,
         session_id: str,
         tool_calls: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Execute tool calls and return results."""
+        """Execute tool calls and return results with tool_call_id."""
         results = []
 
         for tool_call in tool_calls:
             tool_name = tool_call["function"]["name"]
             tool_args_str = tool_call["function"]["arguments"]
+            tool_call_id = tool_call.get("id")
+
+            # Fail loudly if tool_call_id is missing
+            if not tool_call_id:
+                logger.error(
+                    "CRITICAL: tool_call_id missing from tool_call",
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    tool_call=tool_call
+                )
+                raise LLMError(
+                    f"tool_call_id is required but missing for tool: {tool_name}"
+                )
 
             try:
-                # Parse tool arguments
+                # Parse tool arguments (JSON string to dict)
                 tool_args = json.loads(tool_args_str)
 
                 # Execute tool
@@ -412,6 +593,7 @@ class ConversationOrchestrator:
 
                 results.append({
                     "tool_name": tool_name,
+                    "tool_call_id": tool_call_id,
                     "result": result_content,
                     "success": True
                 })
@@ -420,6 +602,7 @@ class ConversationOrchestrator:
                     "Plugin executed successfully",
                     session_id=session_id,
                     plugin_name=tool_name,
+                    tool_call_id=tool_call_id,
                     duration_ms=duration_ms
                 )
 
@@ -440,6 +623,7 @@ class ConversationOrchestrator:
 
                 results.append({
                     "tool_name": tool_name,
+                    "tool_call_id": tool_call_id,
                     "result": error_result,
                     "success": False
                 })
@@ -448,6 +632,7 @@ class ConversationOrchestrator:
                     "Plugin execution failed",
                     session_id=session_id,
                     plugin_name=tool_name,
+                    tool_call_id=tool_call_id,
                     error=str(e)
                 )
 
@@ -467,6 +652,7 @@ class ConversationOrchestrator:
 
                 results.append({
                     "tool_name": tool_name,
+                    "tool_call_id": tool_call_id,
                     "result": error_result,
                     "success": False
                 })
@@ -475,6 +661,7 @@ class ConversationOrchestrator:
                     "Unexpected plugin error",
                     session_id=session_id,
                     plugin_name=tool_name,
+                    tool_call_id=tool_call_id,
                     error=str(e)
                 )
 
