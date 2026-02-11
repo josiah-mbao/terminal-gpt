@@ -1,0 +1,59 @@
+# =============================================================================
+# CODEOWNERS Configuration
+# Defines code reviewers for different parts of the codebase
+# =============================================================================
+
+# Default owners for everything in the repo
+* @josiah-mbao
+
+# -----------------------------------------------------------------------------
+# CI/CD Workflows
+# -----------------------------------------------------------------------------
+/.github/workflows/ @josiah-mbao
+/.github/dependabot.yml @josiah-mbao
+Dockerfile @josiah-mbao
+docker-compose.yml @josiah-mbao
+
+# -----------------------------------------------------------------------------
+# Core Source Code
+# -----------------------------------------------------------------------------
+/src/terminal_gpt/domain/ @josiah-mbao
+/src/terminal_gpt/application/ @josiah-mbao
+/src/terminal_gpt/infrastructure/ @josiah-mbao
+/src/terminal_gpt/api/ @josiah-mbao
+/src/terminal_gpt/cli/ @josiah-mbao
+
+# -----------------------------------------------------------------------------
+# Configuration Files
+# -----------------------------------------------------------------------------
+/pyproject.toml @josiah-mbao
+/requirements.txt @josiah-mbao
+/.env.example @josiah-mbao
+
+# -----------------------------------------------------------------------------
+# Documentation
+# -----------------------------------------------------------------------------
+/README.md @josiah-mbao
+/docs/ @josiah-mbao
+
+# -----------------------------------------------------------------------------
+# Tests
+# -----------------------------------------------------------------------------
+/tests/ @josiah-mbao
+
+# =============================================================================
+# How to use CODEOWNERS:
+# 
+# 1. GitHub will automatically request review from code owners when a PR
+#    modifies files they own
+# 
+# 2. You can require code owner review in branch protection rules
+# 
+# 3. Multiple owners can be specified:
+#    /src/ @user1 @user2 @team1
+# 
+# 4. You can use GitHub teams:
+#    /src/ @myorg/team-name
+#
+# Note: Replace @josiah-mbao with your actual GitHub username or team
+# =============================================================================

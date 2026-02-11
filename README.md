@@ -2,6 +2,7 @@
 
 A fully functional AI agent platform with tool-augmented reasoning, built with Python and FastAPI. Features real LLM conversations, extensible plugin architecture, and a rich terminal interface.
 
+[![CI](https://github.com/josiah-mbao/terminal-gpt/actions/workflows/ci.yml/badge.svg)](https://github.com/josiah-mbao/terminal-gpt/actions/workflows/ci.yml)
 [![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Status](https://img.shields.io/badge/status-production--ready-green.svg)]()
@@ -167,6 +168,37 @@ Terminal GPT is a complete AI agent platform featuring:
 pip install -e ".[dev]"
 pre-commit install
 pytest
+```
+
+### Docker Setup
+
+Build and run using Docker:
+
+```bash
+# Build the Docker image
+docker build -t terminal-gpt .
+
+# Run the API server
+docker run -p 8000:8000 --env-file .env terminal-gpt
+
+# Or use Docker Compose
+docker compose up api
+```
+
+**Docker Compose profiles:**
+
+```bash
+# Run API server (production)
+docker compose up api
+
+# Run development server with hot reload
+docker compose --profile dev up dev
+
+# Run CLI interactively
+docker compose --profile cli run --rm cli
+
+# Run tests in container
+docker compose run --rm dev pytest
 ```
 
 ## Usage
