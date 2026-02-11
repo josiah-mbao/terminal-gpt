@@ -198,7 +198,7 @@ async def handle_new_session(session_id: str):
     global current_session, conversation_history
     current_session = session_id
     conversation_history = []
-    ui.print_success(f"Started new session")
+    ui.print_success("Started new session")
 
 
 async def chat_loop():

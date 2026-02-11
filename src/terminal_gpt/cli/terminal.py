@@ -1,22 +1,14 @@
 """Terminal CLI interface for Terminal GPT."""
 
 import asyncio
-import os
-import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 import httpx
 import typer
-from rich.console import Console
-from rich.live import Live
-from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.prompt import Confirm, Prompt
-from rich.spinner import Spinner
+from rich.prompt import Prompt
 from rich.table import Table
-from rich.theme import Theme
 
 from ..infrastructure.logging import get_logger
 from .enhanced_ui import StatusLevel, enhanced_ui

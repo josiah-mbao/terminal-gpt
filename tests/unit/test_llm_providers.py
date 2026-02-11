@@ -1,9 +1,8 @@
 """Unit tests for LLM providers."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from httpx import Response
 
 from terminal_gpt.domain.exceptions import (
     ConfigurationError,

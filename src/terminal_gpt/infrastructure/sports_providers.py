@@ -1,6 +1,5 @@
 """Sports data providers with unified APIs and caching."""
 
-import asyncio
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -461,7 +460,7 @@ class NBAApiProvider(SportsDataProvider):
                     ),
                     status=(
                         "finished"
-                        if game.get("isGameActivated") == False
+                        if game.get("isGameActivated") is False
                         and game["hTeam"]["score"]
                         else "live" if game.get("isGameActivated") else "scheduled"
                     ),

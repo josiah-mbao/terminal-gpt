@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from ..application.events import event_bus, publish_health_check
 from ..application.orchestrator import ConversationOrchestrator
-from ..config import get_openrouter_config, load_config
+from ..config import load_config
 from ..domain.exceptions import (
     ConfigurationError,
     LLMError,
@@ -138,7 +138,6 @@ async def startup_event():
             )
 
         # Initialize LLM provider
-        openrouter_config = get_openrouter_config()
         llm_provider = create_llm_provider(
             "openrouter", api_key, model="anthropic/claude-3.5-sonnet"
         )
@@ -288,12 +287,10 @@ async def chat(
         # Get conversation info for response
         conversation = orchestrator.get_conversation(request.session_id)
         if conversation:
-            message_count = conversation.get_message_count()
             # Estimate tokens used (rough calculation)
             total_chars = sum(len(msg.content) for msg in conversation.messages)
             tokens_used = total_chars // 4
         else:
-            message_count = 0
             tokens_used = None
 
         # Determine response status

@@ -1,7 +1,5 @@
 """Unit tests for exception hierarchy."""
 
-import pytest
-
 from terminal_gpt.domain.exceptions import (
     ConfigurationError,
     ConversationInvalidStateError,

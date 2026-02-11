@@ -190,7 +190,7 @@ class OpenRouterProvider(LLMProvider):
 
                 return result
 
-            except (LLMAuthenticationError, LLMInvalidRequestError) as e:
+            except (LLMAuthenticationError, LLMInvalidRequestError):
                 # Don't retry these errors
                 await publish_llm_call(
                     provider="openrouter",
@@ -357,7 +357,7 @@ class OpenRouterProvider(LLMProvider):
 
                 return
 
-            except (LLMAuthenticationError, LLMInvalidRequestError) as e:
+            except (LLMAuthenticationError, LLMInvalidRequestError):
                 # Don't retry these errors
                 await publish_llm_call(
                     provider="openrouter",

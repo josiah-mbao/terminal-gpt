@@ -230,25 +230,20 @@ class EnhancedUI:
 
         # Determine role styling
         if role == "user":
-            header_style = "role.user"
             border_style = "role.user"
             header_icon = "👤"
         elif role == "assistant":
-            header_style = "role.assistant"
             border_style = "role.assistant"
             header_icon = "🤖"
             # Render as markdown for better formatting
             content = Markdown(content)
         elif role == "system":
-            header_style = "role.system"
             border_style = "role.system"
             header_icon = "⚙️"
         elif role == "tool":
-            header_style = "role.tool"
             border_style = "role.tool"
             header_icon = "🔧"
         else:
-            header_style = "ui.muted"
             border_style = "ui.border"
             header_icon = "💬"
 
