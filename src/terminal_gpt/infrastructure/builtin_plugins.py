@@ -4,21 +4,25 @@ This module contains the core plugins that ship with Terminal GPT.
 """
 
 from pathlib import Path
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional
 
-from ..domain.plugins import Plugin
+from pydantic import BaseModel, Field
+from simpleeval import simple_eval
+
 from ..domain.exceptions import PluginError
+from ..domain.plugins import Plugin
 from ..infrastructure.sports_providers import sports_data_manager
 
 
 class ReadFileInput(BaseModel):
     """Input schema for read_file plugin."""
+
     path: str = Field(..., description="Path to the file to read")
 
 
 class ReadFileOutput(BaseModel):
     """Output schema for read_file plugin."""
+
     content: str = Field(..., description="Content of the file")
     encoding: Optional[str] = Field(None, description="File encoding detected")
 
@@ -38,7 +42,9 @@ class ReadFilePlugin(Plugin):
 
             # Security: Prevent directory traversal
             if ".." in str(path) or not path.exists():
-                raise PluginError(f"Invalid or non-existent file path: {input_data.path}")
+                raise PluginError(
+                    f"Invalid or non-existent file path: {input_data.path}"
+                )
 
             if not path.is_file():
                 raise PluginError(f"Path is not a file: {input_data.path}")
@@ -49,12 +55,9 @@ class ReadFilePlugin(Plugin):
                 raise PluginError(f"File too large (>1MB): {file_size} bytes")
 
             # Read file content
-            content = path.read_text(encoding='utf-8', errors='replace')
+            content = path.read_text(encoding="utf-8", errors="replace")
 
-            return ReadFileOutput(
-                content=content,
-                encoding="utf-8"
-            )
+            return ReadFileOutput(content=content, encoding="utf-8")
 
         except UnicodeDecodeError:
             raise PluginError(f"File is not valid UTF-8 text: {input_data.path}")
@@ -66,13 +69,17 @@ class ReadFilePlugin(Plugin):
 
 class WriteFileInput(BaseModel):
     """Input schema for write_file plugin."""
+
     path: str = Field(..., description="Path where to write the file")
     content: str = Field(..., description="Content to write to the file")
-    create_directories: bool = Field(False, description="Create parent directories if they don't exist")
+    create_directories: bool = Field(
+        False, description="Create parent directories if they don't exist"
+    )
 
 
 class WriteFileOutput(BaseModel):
     """Output schema for write_file plugin."""
+
     success: bool = Field(..., description="Whether the write operation succeeded")
     bytes_written: int = Field(..., description="Number of bytes written")
 
@@ -99,14 +106,11 @@ class WriteFilePlugin(Plugin):
                 path.parent.mkdir(parents=True, exist_ok=True)
 
             # Write file content
-            path.write_text(input_data.content, encoding='utf-8')
+            path.write_text(input_data.content, encoding="utf-8")
 
-            bytes_written = len(input_data.content.encode('utf-8'))
+            bytes_written = len(input_data.content.encode("utf-8"))
 
-            return WriteFileOutput(
-                success=True,
-                bytes_written=bytes_written
-            )
+            return WriteFileOutput(success=True, bytes_written=bytes_written)
 
         except PermissionError:
             raise PluginError(f"Permission denied writing to file: {input_data.path}")
@@ -116,12 +120,14 @@ class WriteFilePlugin(Plugin):
 
 class ListDirectoryInput(BaseModel):
     """Input schema for list_directory plugin."""
+
     path: str = Field(".", description="Directory path to list")
     show_hidden: bool = Field(False, description="Include hidden files/directories")
 
 
 class DirectoryEntry(BaseModel):
     """Schema for directory entry information."""
+
     name: str = Field(..., description="Name of the file/directory")
     type: str = Field(..., description="Type: 'file' or 'directory'")
     size: Optional[int] = Field(None, description="File size in bytes (files only)")
@@ -129,6 +135,7 @@ class DirectoryEntry(BaseModel):
 
 class ListDirectoryOutput(BaseModel):
     """Output schema for list_directory plugin."""
+
     entries: List[DirectoryEntry] = Field(..., description="List of directory entries")
     total_count: int = Field(..., description="Total number of entries")
 
@@ -148,7 +155,9 @@ class ListDirectoryPlugin(Plugin):
 
             # Security: Prevent directory traversal
             if ".." in str(path) or not path.exists():
-                raise PluginError(f"Invalid or non-existent directory: {input_data.path}")
+                raise PluginError(
+                    f"Invalid or non-existent directory: {input_data.path}"
+                )
 
             if not path.is_dir():
                 raise PluginError(f"Path is not a directory: {input_data.path}")
@@ -156,39 +165,38 @@ class ListDirectoryPlugin(Plugin):
             entries = []
             for item in path.iterdir():
                 # Skip hidden files unless requested
-                if not input_data.show_hidden and item.name.startswith('.'):
+                if not input_data.show_hidden and item.name.startswith("."):
                     continue
 
                 entry_type = "directory" if item.is_dir() else "file"
                 size = item.stat().st_size if item.is_file() else None
 
-                entries.append(DirectoryEntry(
-                    name=item.name,
-                    type=entry_type,
-                    size=size
-                ))
+                entries.append(
+                    DirectoryEntry(name=item.name, type=entry_type, size=size)
+                )
 
             # Sort entries by name
             entries.sort(key=lambda e: e.name.lower())
 
-            return ListDirectoryOutput(
-                entries=entries,
-                total_count=len(entries)
-            )
+            return ListDirectoryOutput(entries=entries, total_count=len(entries))
 
         except PermissionError:
-            raise PluginError(f"Permission denied accessing directory: {input_data.path}")
+            raise PluginError(
+                f"Permission denied accessing directory: {input_data.path}"
+            )
         except Exception as e:
             raise PluginError(f"Failed to list directory {input_data.path}: {e}")
 
 
 class CalculatorInput(BaseModel):
     """Input schema for calculator plugin."""
+
     expression: str = Field(..., description="Mathematical expression to evaluate")
 
 
 class CalculatorOutput(BaseModel):
     """Output schema for calculator plugin."""
+
     result: float = Field(..., description="Result of the calculation")
     expression: str = Field(..., description="Original expression evaluated")
 
@@ -209,15 +217,14 @@ class CalculatorPlugin(Plugin):
             if not all(c in allowed_chars for c in input_data.expression):
                 raise PluginError("Expression contains invalid characters")
 
-            # Use eval with restricted globals/locals for safety
-            result = eval(input_data.expression, {"__builtins__": {}}, {})
+            # Use simple_eval for safe mathematical expression evaluation
+            result = simple_eval(input_data.expression)
 
             if not isinstance(result, (int, float)):
                 raise PluginError("Expression did not evaluate to a number")
 
             return CalculatorOutput(
-                result=float(result),
-                expression=input_data.expression
+                result=float(result), expression=input_data.expression
             )
 
         except ZeroDivisionError:
@@ -230,11 +237,13 @@ class CalculatorPlugin(Plugin):
 
 class SportsScoresInput(BaseModel):
     """Input schema for sports_scores plugin."""
+
     league: str = Field(..., description="Sports league: 'EPL' or 'NBA'")
 
 
 class SportsScoresOutput(BaseModel):
     """Output schema for sports_scores plugin."""
+
     scores: List[Dict[str, Any]] = Field(..., description="List of game scores")
     count: int = Field(..., description="Number of games found")
 
@@ -252,28 +261,29 @@ class SportsScoresPlugin(Plugin):
         try:
             league = input_data.league.upper()
             if league not in ["EPL", "NBA"]:
-                raise PluginError(f"Unsupported league: {input_data.league}. Use 'EPL' or 'NBA'")
+                raise PluginError(
+                    f"Unsupported league: {input_data.league}. Use 'EPL' or 'NBA'"
+                )
 
             scores = await sports_data_manager.get_scores(league)
 
             # Convert to dict format for LLM
             scores_dict = []
             for score in scores:
-                scores_dict.append({
-                    "home_team": score.home_team,
-                    "away_team": score.away_team,
-                    "home_score": score.home_score,
-                    "away_score": score.away_score,
-                    "status": score.status,
-                    "league": score.league,
-                    "venue": score.venue,
-                    "source": score.api_source
-                })
+                scores_dict.append(
+                    {
+                        "home_team": score.home_team,
+                        "away_team": score.away_team,
+                        "home_score": score.home_score,
+                        "away_score": score.away_score,
+                        "status": score.status,
+                        "league": score.league,
+                        "venue": score.venue,
+                        "source": score.api_source,
+                    }
+                )
 
-            return SportsScoresOutput(
-                scores=scores_dict,
-                count=len(scores_dict)
-            )
+            return SportsScoresOutput(scores=scores_dict, count=len(scores_dict))
 
         except Exception as e:
             raise PluginError(f"Failed to get sports scores: {e}")
@@ -281,12 +291,14 @@ class SportsScoresPlugin(Plugin):
 
 class PlayerStatsInput(BaseModel):
     """Input schema for player_stats plugin."""
+
     player_name: str = Field(..., description="Name of the player")
     league: str = Field(..., description="Sports league: 'EPL' or 'NBA'")
 
 
 class PlayerStatsOutput(BaseModel):
     """Output schema for player_stats plugin."""
+
     player_info: Optional[Dict[str, Any]] = Field(None, description="Player statistics")
     found: bool = Field(..., description="Whether player was found")
 
@@ -304,7 +316,9 @@ class PlayerStatsPlugin(Plugin):
         try:
             league = input_data.league.upper()
             if league not in ["EPL", "NBA"]:
-                raise PluginError(f"Unsupported league: {input_data.league}. Use 'EPL' or 'NBA'")
+                raise PluginError(
+                    f"Unsupported league: {input_data.league}. Use 'EPL' or 'NBA'"
+                )
 
             stats = await sports_data_manager.get_player_stats(
                 input_data.player_name, league
@@ -324,17 +338,11 @@ class PlayerStatsPlugin(Plugin):
                     "blocks": stats.blocks,
                     "games_played": stats.games_played,
                     "minutes_played": stats.minutes_played,
-                    "source": stats.api_source
+                    "source": stats.api_source,
                 }
-                return PlayerStatsOutput(
-                    player_info=player_dict,
-                    found=True
-                )
+                return PlayerStatsOutput(player_info=player_dict, found=True)
             else:
-                return PlayerStatsOutput(
-                    player_info=None,
-                    found=False
-                )
+                return PlayerStatsOutput(player_info=None, found=False)
 
         except Exception as e:
             raise PluginError(f"Failed to get player stats: {e}")
@@ -342,12 +350,16 @@ class PlayerStatsPlugin(Plugin):
 
 class GameDetailsInput(BaseModel):
     """Input schema for game_details plugin."""
+
     game_id: str = Field(..., description="Unique game identifier")
 
 
 class GameDetailsOutput(BaseModel):
     """Output schema for game_details plugin."""
-    game_info: Optional[Dict[str, Any]] = Field(None, description="Detailed game information")
+
+    game_info: Optional[Dict[str, Any]] = Field(
+        None, description="Detailed game information"
+    )
     found: bool = Field(..., description="Whether game was found")
 
 
@@ -377,17 +389,11 @@ class GameDetailsPlugin(Plugin):
                     "referee": details.referee,
                     "home_stats": details.home_stats,
                     "away_stats": details.away_stats,
-                    "source": details.api_source
+                    "source": details.api_source,
                 }
-                return GameDetailsOutput(
-                    game_info=game_dict,
-                    found=True
-                )
+                return GameDetailsOutput(game_info=game_dict, found=True)
             else:
-                return GameDetailsOutput(
-                    game_info=None,
-                    found=False
-                )
+                return GameDetailsOutput(game_info=None, found=False)
 
         except Exception as e:
             raise PluginError(f"Failed to get game details: {e}")
@@ -395,25 +401,25 @@ class GameDetailsPlugin(Plugin):
 
 # Export all built-in plugins
 __all__ = [
-    'ReadFilePlugin',
-    'WriteFilePlugin',
-    'ListDirectoryPlugin',
-    'CalculatorPlugin',
-    'SportsScoresPlugin',
-    'PlayerStatsPlugin',
-    'GameDetailsPlugin',
+    "ReadFilePlugin",
+    "WriteFilePlugin",
+    "ListDirectoryPlugin",
+    "CalculatorPlugin",
+    "SportsScoresPlugin",
+    "PlayerStatsPlugin",
+    "GameDetailsPlugin",
 ]
 
 
 # Auto-register all built-in plugins
 def register_builtin_plugins():
     """Register all built-in plugins with the global plugin registry.
-    
+
     This function is idempotent - it won't register plugins that are
     already registered. Safe to call multiple times.
     """
     from ..domain.plugins import plugin_registry
-    
+
     plugins = [
         ReadFilePlugin(),
         WriteFilePlugin(),
@@ -423,7 +429,7 @@ def register_builtin_plugins():
         PlayerStatsPlugin(),
         GameDetailsPlugin(),
     ]
-    
+
     for plugin in plugins:
         # Skip if already registered
         if plugin_registry.has_plugin(plugin.name):

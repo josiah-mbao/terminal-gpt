@@ -9,12 +9,13 @@ import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Callable, Type, TypeVar, Generic
 from enum import Enum
+from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar
 
 
 class EventPriority(Enum):
     """Priority levels for event processing."""
+
     LOW = 1
     NORMAL = 2
     HIGH = 3
@@ -23,6 +24,7 @@ class EventPriority(Enum):
 
 class EventCategory(Enum):
     """Categories for organizing events."""
+
     SYSTEM = "system"
     USER = "user"
     PLUGIN = "plugin"
@@ -37,6 +39,7 @@ class Event:
 
     All events should inherit from this class and add their specific data.
     """
+
     event_id: str
     category: EventCategory
     priority: EventPriority
@@ -56,6 +59,7 @@ class Event:
 @dataclass(frozen=True)
 class UserMessageReceived(Event):
     """Event fired when a user message is received."""
+
     session_id: str
     message_content: str
 
@@ -63,6 +67,7 @@ class UserMessageReceived(Event):
 @dataclass(frozen=True)
 class AssistantMessageGenerated(Event):
     """Event fired when an assistant response is generated."""
+
     session_id: str
     response_content: str
     tokens_used: Optional[int] = None
@@ -71,6 +76,7 @@ class AssistantMessageGenerated(Event):
 @dataclass(frozen=True)
 class PluginExecuted(Event):
     """Event fired when a plugin is executed."""
+
     plugin_name: str
     execution_time_ms: float
     success: bool
@@ -80,6 +86,7 @@ class PluginExecuted(Event):
 @dataclass(frozen=True)
 class LLMCallCompleted(Event):
     """Event fired when an LLM API call completes."""
+
     provider: str
     model: str
     tokens_used: int
@@ -90,6 +97,7 @@ class LLMCallCompleted(Event):
 @dataclass(frozen=True)
 class ConversationErrorOccurred(Event):
     """Event fired when a conversation error occurs."""
+
     session_id: str
     error_type: str
     error_message: str
@@ -98,12 +106,13 @@ class ConversationErrorOccurred(Event):
 @dataclass(frozen=True)
 class SystemHealthCheck(Event):
     """Event fired during system health checks."""
+
     component: str
     status: str  # "healthy", "degraded", "unhealthy"
     metrics: Dict[str, Any]
 
 
-EventType = TypeVar('EventType', bound=Event)
+EventType = TypeVar("EventType", bound=Event)
 
 
 class EventHandler(Generic[EventType], ABC):
@@ -138,17 +147,19 @@ class EventBus:
 
         self._running = True
         self._task = asyncio.create_task(self._process_events())
-        await self.publish(SystemHealthCheck(
-            event_id=f"system-start-{datetime.utcnow().isoformat()}",
-            category=EventCategory.SYSTEM,
-            priority=EventPriority.NORMAL,
-            timestamp=datetime.utcnow(),
-            source="event_bus",
-            data={"status": "started"},
-            component="event_bus",
-            status="healthy",
-            metrics={"handlers_registered": len(self._handlers)}
-        ))
+        await self.publish(
+            SystemHealthCheck(
+                event_id=f"system-start-{datetime.utcnow().isoformat()}",
+                category=EventCategory.SYSTEM,
+                priority=EventPriority.NORMAL,
+                timestamp=datetime.utcnow(),
+                source="event_bus",
+                data={"status": "started"},
+                component="event_bus",
+                status="healthy",
+                metrics={"handlers_registered": len(self._handlers)},
+            )
+        )
 
     async def stop(self) -> None:
         """Stop the event processing loop."""
@@ -234,99 +245,119 @@ event_bus = EventBus()
 # Convenience functions for common event publishing
 async def publish_user_message(session_id: str, content: str) -> None:
     """Publish a user message received event."""
-    await event_bus.publish(UserMessageReceived(
-        event_id=f"user-msg-{session_id}-{datetime.utcnow().isoformat()}",
-        category=EventCategory.USER,
-        priority=EventPriority.NORMAL,
-        timestamp=datetime.utcnow(),
-        source="conversation_manager",
-        data={"session_id": session_id, "content_length": len(content)},
-        session_id=session_id,
-        message_content=content
-    ))
+    await event_bus.publish(
+        UserMessageReceived(
+            event_id=f"user-msg-{session_id}-{datetime.utcnow().isoformat()}",
+            category=EventCategory.USER,
+            priority=EventPriority.NORMAL,
+            timestamp=datetime.utcnow(),
+            source="conversation_manager",
+            data={"session_id": session_id, "content_length": len(content)},
+            session_id=session_id,
+            message_content=content,
+        )
+    )
 
 
-async def publish_assistant_response(session_id: str, content: str,
-                                   tokens_used: Optional[int] = None) -> None:
+async def publish_assistant_response(
+    session_id: str, content: str, tokens_used: Optional[int] = None
+) -> None:
     """Publish an assistant response generated event."""
-    await event_bus.publish(AssistantMessageGenerated(
-        event_id=f"assistant-msg-{session_id}-{datetime.utcnow().isoformat()}",
-        category=EventCategory.CONVERSATION,
-        priority=EventPriority.NORMAL,
-        timestamp=datetime.utcnow(),
-        source="orchestrator",
-        data={"session_id": session_id, "content_length": len(content)},
-        session_id=session_id,
-        response_content=content,
-        tokens_used=tokens_used
-    ))
+    await event_bus.publish(
+        AssistantMessageGenerated(
+            event_id=f"assistant-msg-{session_id}-{datetime.utcnow().isoformat()}",
+            category=EventCategory.CONVERSATION,
+            priority=EventPriority.NORMAL,
+            timestamp=datetime.utcnow(),
+            source="orchestrator",
+            data={"session_id": session_id, "content_length": len(content)},
+            session_id=session_id,
+            response_content=content,
+            tokens_used=tokens_used,
+        )
+    )
 
 
-async def publish_plugin_execution(plugin_name: str, execution_time_ms: float,
-                                 success: bool, session_id: Optional[str] = None) -> None:
+async def publish_plugin_execution(
+    plugin_name: str,
+    execution_time_ms: float,
+    success: bool,
+    session_id: Optional[str] = None,
+) -> None:
     """Publish a plugin execution event."""
     priority = EventPriority.HIGH if not success else EventPriority.NORMAL
-    await event_bus.publish(PluginExecuted(
-        event_id=f"plugin-{plugin_name}-{datetime.utcnow().isoformat()}",
-        category=EventCategory.PLUGIN,
-        priority=priority,
-        timestamp=datetime.utcnow(),
-        source="plugin_system",
-        data={"plugin_name": plugin_name, "execution_time_ms": execution_time_ms},
-        plugin_name=plugin_name,
-        execution_time_ms=execution_time_ms,
-        success=success,
-        session_id=session_id
-    ))
+    await event_bus.publish(
+        PluginExecuted(
+            event_id=f"plugin-{plugin_name}-{datetime.utcnow().isoformat()}",
+            category=EventCategory.PLUGIN,
+            priority=priority,
+            timestamp=datetime.utcnow(),
+            source="plugin_system",
+            data={"plugin_name": plugin_name, "execution_time_ms": execution_time_ms},
+            plugin_name=plugin_name,
+            execution_time_ms=execution_time_ms,
+            success=success,
+            session_id=session_id,
+        )
+    )
 
 
-async def publish_llm_call(provider: str, model: str, tokens_used: int,
-                          success: bool, duration_ms: float) -> None:
+async def publish_llm_call(
+    provider: str, model: str, tokens_used: int, success: bool, duration_ms: float
+) -> None:
     """Publish an LLM call completion event."""
     priority = EventPriority.HIGH if not success else EventPriority.NORMAL
-    await event_bus.publish(LLMCallCompleted(
-        event_id=f"llm-{provider}-{datetime.utcnow().isoformat()}",
-        category=EventCategory.LLM,
-        priority=priority,
-        timestamp=datetime.utcnow(),
-        source="llm_provider",
-        data={"provider": provider, "model": model, "tokens_used": tokens_used},
-        provider=provider,
-        model=model,
-        tokens_used=tokens_used,
-        success=success,
-        duration_ms=duration_ms
-    ))
+    await event_bus.publish(
+        LLMCallCompleted(
+            event_id=f"llm-{provider}-{datetime.utcnow().isoformat()}",
+            category=EventCategory.LLM,
+            priority=priority,
+            timestamp=datetime.utcnow(),
+            source="llm_provider",
+            data={"provider": provider, "model": model, "tokens_used": tokens_used},
+            provider=provider,
+            model=model,
+            tokens_used=tokens_used,
+            success=success,
+            duration_ms=duration_ms,
+        )
+    )
 
 
-async def publish_conversation_error(session_id: str, error_type: str,
-                                   error_message: str) -> None:
+async def publish_conversation_error(
+    session_id: str, error_type: str, error_message: str
+) -> None:
     """Publish a conversation error event."""
-    await event_bus.publish(ConversationErrorOccurred(
-        event_id=f"error-{session_id}-{datetime.utcnow().isoformat()}",
-        category=EventCategory.CONVERSATION,
-        priority=EventPriority.HIGH,
-        timestamp=datetime.utcnow(),
-        source="conversation_manager",
-        data={"session_id": session_id, "error_type": error_type},
-        session_id=session_id,
-        error_type=error_type,
-        error_message=error_message
-    ))
+    await event_bus.publish(
+        ConversationErrorOccurred(
+            event_id=f"error-{session_id}-{datetime.utcnow().isoformat()}",
+            category=EventCategory.CONVERSATION,
+            priority=EventPriority.HIGH,
+            timestamp=datetime.utcnow(),
+            source="conversation_manager",
+            data={"session_id": session_id, "error_type": error_type},
+            session_id=session_id,
+            error_type=error_type,
+            error_message=error_message,
+        )
+    )
 
 
-async def publish_health_check(component: str, status: str,
-                              metrics: Dict[str, Any]) -> None:
+async def publish_health_check(
+    component: str, status: str, metrics: Dict[str, Any]
+) -> None:
     """Publish a system health check event."""
     priority = EventPriority.CRITICAL if status == "unhealthy" else EventPriority.LOW
-    await event_bus.publish(SystemHealthCheck(
-        event_id=f"health-{component}-{datetime.utcnow().isoformat()}",
-        category=EventCategory.SYSTEM,
-        priority=priority,
-        timestamp=datetime.utcnow(),
-        source="health_monitor",
-        data={"component": component, "status": status, **metrics},
-        component=component,
-        status=status,
-        metrics=metrics
-    ))
+    await event_bus.publish(
+        SystemHealthCheck(
+            event_id=f"health-{component}-{datetime.utcnow().isoformat()}",
+            category=EventCategory.SYSTEM,
+            priority=priority,
+            timestamp=datetime.utcnow(),
+            source="health_monitor",
+            data={"component": component, "status": status, **metrics},
+            component=component,
+            status=status,
+            metrics=metrics,
+        )
+    )

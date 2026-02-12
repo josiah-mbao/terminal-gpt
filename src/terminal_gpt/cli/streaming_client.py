@@ -3,7 +3,7 @@
 import asyncio
 import json
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
 
 import typer
 import websockets
@@ -12,8 +12,8 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
 
-from ..infrastructure.logging import get_logger
 from ..cli.enhanced_ui import enhanced_ui
+from ..infrastructure.logging import get_logger
 
 logger = get_logger("terminal_gpt.streaming_cli")
 
@@ -34,15 +34,32 @@ PACING_ENABLED = True
 conversation_history: List[dict] = []
 
 
-async def send_streaming_message(session_id: str, message: str):
+async def thinking_animation(live: Live, stop_event: asyncio.Event):
+    """Show thinking animation until stop_event is set."""
+    frames = [
+        "Jengo is thinking.  ",
+        "Jengo is thinking.. ",
+        "Jengo is thinking...",
+    ]
+    frame_idx = 0
+    while not stop_event.is_set():
+        live.update(Text(frames[frame_idx], style="bold cyan"))
+        frame_idx = (frame_idx + 1) % len(frames)
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=0.25)
+        except asyncio.TimeoutError:
+            continue
+
+
+async def send_streaming_message(
+    session_id: str, message: str, first_chunk_event: asyncio.Event
+):
     """Send a message and stream the response."""
     websocket_url = f"{api_base_url}/ws/chat/{session_id}"
 
     try:
         async with websockets.connect(
-            websocket_url,
-            open_timeout=CONNECTION_TIMEOUT,
-            close_timeout=10.0
+            websocket_url, open_timeout=CONNECTION_TIMEOUT, close_timeout=10.0
         ) as websocket:
             # Send the message
             await websocket.send(json.dumps({"message": message}))
@@ -54,15 +71,16 @@ async def send_streaming_message(session_id: str, message: str):
             while True:
                 try:
                     response = await asyncio.wait_for(
-                        websocket.recv(),
-                        timeout=300.0
+                        websocket.recv(), timeout=300.0
                     )
                     data = json.loads(response)
 
                     if data["type"] == "chunk":
                         content = data.get("content", "")
                         if content:
+                            # Signal that first chunk has arrived
                             if first_chunk:
+                                first_chunk_event.set()
                                 # Print assistant header
                                 ui.console.print(
                                     "\n[bold magenta]🤖 Jengo[/bold magenta]"
@@ -87,37 +105,47 @@ async def send_streaming_message(session_id: str, message: str):
                         # Response completed
                         processing_time = data.get("processing_time_ms", 0)
                         # Add to conversation history
-                        conversation_history.append({
-                            "role": "assistant",
-                            "content": full_response,
-                            "time": datetime.now()
-                        })
+                        conversation_history.append(
+                            {
+                                "role": "assistant",
+                                "content": full_response,
+                                "time": datetime.now(),
+                            }
+                        )
                         # Trim history if too long
                         if len(conversation_history) > 6:
-                            conversation_history.pop(0) if conversation_history[0]["role"] == "user" else None
-                        ui.console.print(
-                            f"\n[dim]⚡ {processing_time}ms[/dim]"
-                        )
+                            (
+                                conversation_history.pop(0)
+                                if conversation_history[0]["role"] == "user"
+                                else None
+                            )
+                        ui.console.print(f"\n[dim]⚡ {processing_time}ms[/dim]")
                         break
 
                     elif data["type"] == "error":
                         error_msg = data.get("error", "Unknown error")
                         ui.print_error("AI Response Error", error_msg)
+                        first_chunk_event.set()
                         break
 
                 except asyncio.TimeoutError:
                     ui.print_error("Response timeout", "No data received")
+                    first_chunk_event.set()
                     break
                 except websockets.exceptions.ConnectionClosed:
                     ui.print_error("Connection closed by server")
+                    first_chunk_event.set()
                     break
 
             return full_response
 
     except Exception as e:
-        status_code = getattr(e, 'status_code', None)
+        first_chunk_event.set()
+        status_code = getattr(e, "status_code", None)
         if status_code == 404:
-            ui.print_error("Session not found", f"Session '{session_id}' not found")
+            ui.print_error(
+                "Session not found", f"Session '{session_id}' not found"
+            )
         elif status_code == 500:
             ui.print_error("Server error", "The server encountered an error")
         elif status_code:
@@ -127,17 +155,41 @@ async def send_streaming_message(session_id: str, message: str):
         return None
 
 
+async def send_message_with_animation(session_id: str, message: str):
+    """Send message with concurrent thinking animation."""
+    first_chunk_event = asyncio.Event()
+
+    with Live(refresh_per_second=8) as live:
+        # Start animation and message sending concurrently
+        animation_task = asyncio.create_task(
+            thinking_animation(live, first_chunk_event)
+        )
+        message_task = asyncio.create_task(
+            send_streaming_message(session_id, message, first_chunk_event)
+        )
+
+        # Wait for message task to complete
+        response = await message_task
+
+        # Cancel animation if still running
+        animation_task.cancel()
+        try:
+            await animation_task
+        except asyncio.CancelledError:
+            pass
+
+        return response
+
+
 async def send_streaming_message_with_retry(
-    session_id: str,
-    message: str,
-    max_retries: int = MAX_RETRY_ATTEMPTS
+    session_id: str, message: str, max_retries: int = MAX_RETRY_ATTEMPTS
 ) -> Optional[str]:
     """Send a message with automatic reconnection on failure."""
     retry_delays = RETRY_DELAYS[:max_retries]
 
     for attempt, delay in enumerate(retry_delays):
         try:
-            return await send_streaming_message(session_id, message)
+            return await send_message_with_animation(session_id, message)
 
         except websockets.exceptions.ConnectionClosed:
             if attempt < len(retry_delays) - 1:
@@ -151,7 +203,9 @@ async def send_streaming_message_with_retry(
 
         except Exception as e:
             if attempt < len(retry_delays) - 1:
-                logger.warning(f"Connection error: {e}, retrying in {delay}s...")
+                logger.warning(
+                    f"Connection error: {e}, retrying in {delay}s..."
+                )
                 await asyncio.sleep(delay)
                 continue
             else:
@@ -201,11 +255,12 @@ async def handle_new_session(session_id: str):
     global current_session, conversation_history
     current_session = session_id
     conversation_history = []
-    ui.print_success(f"Started new session")
+    ui.print_success("Started new session")
 
 
 async def chat_loop():
     """Main streaming chat interaction loop."""
+
     global current_session
 
     if not current_session:
@@ -227,31 +282,19 @@ async def chat_loop():
                 continue
 
             # Add user message to history
-            conversation_history.append({
-                "role": "user",
-                "content": user_input,
-                "time": datetime.now()
-            })
+            conversation_history.append(
+                {
+                    "role": "user",
+                    "content": user_input,
+                    "time": datetime.now(),
+                }
+            )
 
-            # Show thinking animation
-            with Live(refresh_per_second=8) as live:
-                frames = ["Jengo is thinking.  ", 
-                         "Jengo is thinking.. ", 
-                         "Jengo is thinking..."]
-                frame_idx = 0
-                for _ in range(24):  # Up to 6 seconds
-                    if conversation_history and \
-                            conversation_history[-1].get("role") == "user":
-                        live.update(Text(frames[frame_idx], 
-                                         style="bold cyan"))
-                        frame_idx = (frame_idx + 1) % len(frames)
-                        await asyncio.sleep(0.25)
-                    else:
-                        break
-
-            # Send message and get response
-            if conversation_history and \
-                    conversation_history[-1].get("role") == "user":
+            # Send message with concurrent animation
+            if (
+                conversation_history
+                and conversation_history[-1].get("role") == "user"
+            ):
                 response = await send_streaming_message_with_retry(
                     current_session, user_input
                 )
@@ -259,7 +302,9 @@ async def chat_loop():
                     conversation_history.pop()
 
         except KeyboardInterrupt:
-            ui.print_warning("Type /quit to exit or continue chatting.")
+            ui.print_warning(
+                "Type /quit to exit or continue chatting."
+            )
         except EOFError:
             break
         except Exception as e:
@@ -271,14 +316,20 @@ async def chat_loop():
 app = typer.Typer(
     name="Jengo",
     help="AI chat with streaming responses",
-    rich_markup_mode="rich"
+    rich_markup_mode="rich",
 )
 
 
 @app.command()
 def chat(
-    session: Optional[str] = typer.Option(None, "--session", "-s", help="Session ID to use"),
-    api_url: str = typer.Option("ws://localhost:8000", "--api-url", help="WebSocket API base URL")
+    session: Optional[str] = typer.Option(
+        None, "--session", "-s", help="Session ID to use"
+    ),
+    api_url: str = typer.Option(
+        "ws://localhost:8000",
+        "--api-url",
+        help="WebSocket API base URL",
+    ),
 ):
     """Start interactive streaming chat session."""
     global current_session, api_base_url

@@ -1,0 +1,91 @@
+# =============================================================================
+# Dependabot Configuration
+# Automated dependency updates for Terminal GPT
+# =============================================================================
+
+version: 2
+
+updates:
+  # -----------------------------------------------------------------------------
+  # Python Dependencies (pip)
+  # -----------------------------------------------------------------------------
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
+    assignees:
+      - "josiah-mbao"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "⬆️ "
+      prefix-development: "⬆️ dev:"
+      include: "scope"
+    # Group related updates together
+    groups:
+      fastapi:
+        patterns:
+          - "fastapi*"
+          - "uvicorn*"
+          - "starlette*"
+      pydantic:
+        patterns:
+          - "pydantic*"
+      testing:
+        patterns:
+          - "pytest*"
+          - "pytest-asyncio"
+          - "pytest-cov"
+      dev-tools:
+        patterns:
+          - "black"
+          - "isort"
+          - "mypy"
+          - "pre-commit"
+          - "flake8"
+
+  # -----------------------------------------------------------------------------
+  # GitHub Actions
+  # -----------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    assignees:
+      - "josiah-mbao"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "ci-cd"
+    commit-message:
+      prefix: "⬆️ ci:"
+      include: "scope"
+
+  # -----------------------------------------------------------------------------
+  # Docker Dependencies
+  # -----------------------------------------------------------------------------
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    assignees:
+      - "josiah-mbao"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "⬆️ docker:"
+      include: "scope"

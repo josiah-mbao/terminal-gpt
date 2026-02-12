@@ -9,14 +9,17 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import httpx
 from pydantic import BaseModel
 
+from ..application.events import publish_llm_call
 from ..domain.exceptions import (
-    LLMError, LLMAuthenticationError, LLMQuotaExceededError,
-    LLMServiceUnavailableError, LLMInvalidRequestError,
-    LLMContentFilterError, ConfigurationError
+    ConfigurationError,
+    LLMAuthenticationError,
+    LLMContentFilterError,
+    LLMError,
+    LLMInvalidRequestError,
+    LLMQuotaExceededError,
+    LLMServiceUnavailableError,
 )
 from ..infrastructure.logging import get_logger
-from ..application.events import publish_llm_call
-
 
 logger = get_logger("terminal_gpt.llm")
 
@@ -43,10 +46,7 @@ class LLMProvider(ABC):
         """Async context manager entry."""
         # Increased timeouts for long streaming responses (Session Stability Fix)
         timeout = httpx.Timeout(60.0, read=180.0)  # 60s connect, 180s read
-        self._client = httpx.AsyncClient(
-            timeout=timeout,
-            headers=self._get_headers()
-        )
+        self._client = httpx.AsyncClient(timeout=timeout, headers=self._get_headers())
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -65,7 +65,7 @@ class LLMProvider(ABC):
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ) -> LLMResponse:
         """Generate response from LLM."""
         pass
@@ -75,7 +75,7 @@ class LLMProvider(ABC):
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[LLMResponse, None]:
         """Generate streaming response from LLM."""
         pass
@@ -97,7 +97,7 @@ class OpenRouterProvider(LLMProvider):
         model: str = "openai/gpt-3.5-turbo",
         max_retries: int = 3,
         retry_delay: float = 1.0,
-        max_retry_delay: float = 60.0
+        max_retry_delay: float = 60.0,
     ):
         super().__init__(api_key, model)
         self.max_retries = max_retries
@@ -120,11 +120,13 @@ class OpenRouterProvider(LLMProvider):
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ) -> LLMResponse:
         """Generate response from OpenRouter with retry logic."""
         if not self._client:
-            raise LLMError("Provider not properly initialized. Use async context manager.")
+            raise LLMError(
+                "Provider not properly initialized. Use async context manager."
+            )
 
         config = config or {}
         start_time = time.time()
@@ -151,19 +153,18 @@ class OpenRouterProvider(LLMProvider):
                     attempt=attempt + 1,
                     model=self.model,
                     messages_count=len(messages),
-                    tools_count=len(tools) if tools else 0
+                    tools_count=len(tools) if tools else 0,
                 )
 
                 # Make API request
                 response = await self._client.post(
-                    f"{self.BASE_URL}/chat/completions",
-                    json=payload
+                    f"{self.BASE_URL}/chat/completions", json=payload
                 )
 
                 logger.debug(
                     "OpenRouter API response received",
                     status_code=response.status_code,
-                    attempt=attempt + 1
+                    attempt=attempt + 1,
                 )
 
                 # Handle HTTP errors
@@ -180,21 +181,23 @@ class OpenRouterProvider(LLMProvider):
                 await publish_llm_call(
                     provider="openrouter",
                     model=self.model,
-                    tokens_used=result.usage.get("total_tokens", 0) if result.usage else 0,
+                    tokens_used=(
+                        result.usage.get("total_tokens", 0) if result.usage else 0
+                    ),
                     success=True,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
                 )
 
                 return result
 
-            except (LLMAuthenticationError, LLMInvalidRequestError) as e:
+            except (LLMAuthenticationError, LLMInvalidRequestError):
                 # Don't retry these errors
                 await publish_llm_call(
                     provider="openrouter",
                     model=self.model,
                     tokens_used=0,
                     success=False,
-                    duration_ms=int((time.time() - start_time) * 1000)
+                    duration_ms=int((time.time() - start_time) * 1000),
                 )
                 raise
 
@@ -202,10 +205,7 @@ class OpenRouterProvider(LLMProvider):
                 last_exception = e
                 if attempt < self.max_retries:
                     # Exponential backoff
-                    delay = min(
-                        self.retry_delay * (2 ** attempt),
-                        self.max_retry_delay
-                    )
+                    delay = min(self.retry_delay * (2**attempt), self.max_retry_delay)
                     logger.warning(
                         f"LLM request failed (attempt {attempt + 1}/{self.max_retries + 1}), "
                         f"retrying in {delay}s: {e}"
@@ -219,17 +219,14 @@ class OpenRouterProvider(LLMProvider):
                         model=self.model,
                         tokens_used=0,
                         success=False,
-                        duration_ms=int((time.time() - start_time) * 1000)
+                        duration_ms=int((time.time() - start_time) * 1000),
                     )
                     raise
 
             except Exception as e:
                 last_exception = LLMError(f"Unexpected error: {e}")
                 if attempt < self.max_retries:
-                    delay = min(
-                        self.retry_delay * (2 ** attempt),
-                        self.max_retry_delay
-                    )
+                    delay = min(self.retry_delay * (2**attempt), self.max_retry_delay)
                     logger.warning(
                         f"Unexpected LLM error (attempt {attempt + 1}/{self.max_retries + 1}), "
                         f"retrying in {delay}s: {e}"
@@ -242,7 +239,7 @@ class OpenRouterProvider(LLMProvider):
                         model=self.model,
                         tokens_used=0,
                         success=False,
-                        duration_ms=int((time.time() - start_time) * 1000)
+                        duration_ms=int((time.time() - start_time) * 1000),
                     )
                     raise last_exception
 
@@ -253,11 +250,13 @@ class OpenRouterProvider(LLMProvider):
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[LLMResponse, None]:
         """Generate streaming response from OpenRouter with retry logic."""
         if not self._client:
-            raise LLMError("Provider not properly initialized. Use async context manager.")
+            raise LLMError(
+                "Provider not properly initialized. Use async context manager."
+            )
 
         config = config or {}
         start_time = time.time()
@@ -282,7 +281,7 @@ class OpenRouterProvider(LLMProvider):
             model=self.model,
             api_key_preview=f"{self.api_key[:8]}...",
             max_retries=self.max_retries,
-            retry_delay=self.retry_delay
+            retry_delay=self.retry_delay,
         )
 
         # Log the request payload (sanitized)
@@ -293,7 +292,7 @@ class OpenRouterProvider(LLMProvider):
             tools_count=len(tools) if tools else 0,
             temperature=payload["temperature"],
             max_tokens=payload["max_tokens"],
-            stream=payload["stream"]
+            stream=payload["stream"],
         )
 
         last_exception = None
@@ -306,13 +305,12 @@ class OpenRouterProvider(LLMProvider):
                     attempt=attempt + 1,
                     model=self.model,
                     messages_count=len(messages),
-                    tools_count=len(tools) if tools else 0
+                    tools_count=len(tools) if tools else 0,
                 )
 
                 # Make streaming API request
                 response = await self._client.post(
-                    f"{self.BASE_URL}/chat/completions",
-                    json=payload
+                    f"{self.BASE_URL}/chat/completions", json=payload
                 )
 
                 # Log full response details including headers for rate limit debugging
@@ -321,18 +319,21 @@ class OpenRouterProvider(LLMProvider):
                     status_code=response.status_code,
                     attempt=attempt + 1,
                     headers=dict(response.headers),
-                    url=str(response.url)
+                    url=str(response.url),
                 )
 
                 # Log rate limit headers specifically
                 rate_limit_headers = {
-                    k: v for k, v in response.headers.items()
-                    if 'rate' in k.lower() or 'limit' in k.lower() or 'retry' in k.lower()
+                    k: v
+                    for k, v in response.headers.items()
+                    if "rate" in k.lower()
+                    or "limit" in k.lower()
+                    or "retry" in k.lower()
                 }
                 if rate_limit_headers:
                     logger.error(
                         "Rate limit headers detected",
-                        rate_limit_headers=rate_limit_headers
+                        rate_limit_headers=rate_limit_headers,
                     )
 
                 # Handle HTTP errors
@@ -351,19 +352,19 @@ class OpenRouterProvider(LLMProvider):
                     model=self.model,
                     tokens_used=0,  # Streaming doesn't provide usage until end
                     success=True,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
                 )
 
                 return
 
-            except (LLMAuthenticationError, LLMInvalidRequestError) as e:
+            except (LLMAuthenticationError, LLMInvalidRequestError):
                 # Don't retry these errors
                 await publish_llm_call(
                     provider="openrouter",
                     model=self.model,
                     tokens_used=0,
                     success=False,
-                    duration_ms=int((time.time() - start_time) * 1000)
+                    duration_ms=int((time.time() - start_time) * 1000),
                 )
                 raise
 
@@ -371,10 +372,7 @@ class OpenRouterProvider(LLMProvider):
                 last_exception = e
                 if attempt < self.max_retries:
                     # Exponential backoff
-                    delay = min(
-                        self.retry_delay * (2 ** attempt),
-                        self.max_retry_delay
-                    )
+                    delay = min(self.retry_delay * (2**attempt), self.max_retry_delay)
                     logger.warning(
                         f"LLM streaming request failed (attempt {attempt + 1}/{self.max_retries + 1}), "
                         f"retrying in {delay}s: {e}"
@@ -388,17 +386,14 @@ class OpenRouterProvider(LLMProvider):
                         model=self.model,
                         tokens_used=0,
                         success=False,
-                        duration_ms=int((time.time() - start_time) * 1000)
+                        duration_ms=int((time.time() - start_time) * 1000),
                     )
                     raise
 
             except Exception as e:
                 last_exception = LLMError(f"Unexpected error: {e}")
                 if attempt < self.max_retries:
-                    delay = min(
-                        self.retry_delay * (2 ** attempt),
-                        self.max_retry_delay
-                    )
+                    delay = min(self.retry_delay * (2**attempt), self.max_retry_delay)
                     logger.warning(
                         f"Unexpected LLM streaming error (attempt {attempt + 1}/{self.max_retries + 1}), "
                         f"retrying in {delay}s: {e}"
@@ -411,20 +406,22 @@ class OpenRouterProvider(LLMProvider):
                         model=self.model,
                         tokens_used=0,
                         success=False,
-                        duration_ms=int((time.time() - start_time) * 1000)
+                        duration_ms=int((time.time() - start_time) * 1000),
                     )
                     raise last_exception
 
         # Should not reach here
         raise last_exception or LLMError("All retry attempts exhausted")
 
-    async def _parse_stream_response(self, response: httpx.Response) -> AsyncGenerator[LLMResponse, None]:
+    async def _parse_stream_response(
+        self, response: httpx.Response
+    ) -> AsyncGenerator[LLMResponse, None]:
         """Parse OpenRouter streaming response with tool call accumulation."""
-        
+
         # Buffer for accumulating fragmented tool calls across chunks
         # Keyed by tool call index to handle multiple parallel tool calls
         tool_call_buffers: Dict[int, Dict[str, Any]] = {}
-        
+
         async for line in response.aiter_lines():
             if not line:
                 continue
@@ -432,48 +429,51 @@ class OpenRouterProvider(LLMProvider):
             # Handle Server-Sent Events format
             if line.startswith("data: "):
                 data = line[6:]  # Remove "data: " prefix
-                
+
                 if data == "[DONE]":
                     break
 
                 try:
                     # Parse JSON data
                     parsed_data = json.loads(data)
-                    
+
                     # Handle mid-stream errors
                     if "error" in parsed_data:
-                        error_msg = parsed_data["error"].get("message", "Unknown streaming error")
+                        error_msg = parsed_data["error"].get(
+                            "message", "Unknown streaming error"
+                        )
                         raise LLMError(f"Streaming error: {error_msg}")
 
                     # Extract content from chunk
                     choice = parsed_data.get("choices", [{}])[0]
                     delta = choice.get("delta", {})
-                    
+
                     content = delta.get("content", "")
                     finish_reason = choice.get("finish_reason")
-                    
+
                     # Accumulate tool calls from delta
                     if "tool_calls" in delta and delta["tool_calls"]:
                         for tc in delta["tool_calls"]:
                             idx = tc.get("index", 0)
-                            
+
                             # Initialize buffer for this tool call index if not exists
                             if idx not in tool_call_buffers:
                                 tool_call_buffers[idx] = {
-                                    "id": tc.get("id", f"call_{idx}_{int(time.time() * 1000)}"),
+                                    "id": tc.get(
+                                        "id", f"call_{idx}_{int(time.time() * 1000)}"
+                                    ),
                                     "type": tc.get("type", "function"),
-                                    "function": {
-                                        "name": "",
-                                        "arguments": ""
-                                    }
+                                    "function": {"name": "", "arguments": ""},
                                 }
-                            
+
                             # Accumulate function name and arguments incrementally
                             fn = tc.get("function", {})
                             if "name" in fn:
                                 tool_call_buffers[idx]["function"]["name"] = fn["name"]
                             if "arguments" in fn:
-                                tool_call_buffers[idx]["function"]["arguments"] += fn["arguments"]
+                                tool_call_buffers[idx]["function"]["arguments"] += fn[
+                                    "arguments"
+                                ]
 
                     # Yield chunk if it has content
                     if content:
@@ -482,9 +482,9 @@ class OpenRouterProvider(LLMProvider):
                             model=parsed_data.get("model", self.model),
                             finish_reason=None,  # Don't signal finish until we know it's complete
                             usage=parsed_data.get("usage"),
-                            tool_calls=None  # Don't yield partial tool calls
+                            tool_calls=None,  # Don't yield partial tool calls
                         )
-                    
+
                     # When finish_reason is tool_calls, yield the complete accumulated tool calls
                     if finish_reason == "tool_calls":
                         if tool_call_buffers:
@@ -493,7 +493,7 @@ class OpenRouterProvider(LLMProvider):
                                 model=parsed_data.get("model", self.model),
                                 finish_reason=finish_reason,
                                 usage=parsed_data.get("usage"),
-                                tool_calls=list(tool_call_buffers.values())
+                                tool_calls=list(tool_call_buffers.values()),
                             )
                         else:
                             # Unexpected: finish_reason is tool_calls but no tool calls accumulated
@@ -507,7 +507,7 @@ class OpenRouterProvider(LLMProvider):
                             model=parsed_data.get("model", self.model),
                             finish_reason=finish_reason,
                             usage=parsed_data.get("usage"),
-                            tool_calls=None
+                            tool_calls=None,
                         )
 
                 except json.JSONDecodeError:
@@ -541,12 +541,11 @@ class OpenRouterProvider(LLMProvider):
             raise LLMQuotaExceededError(
                 f"Rate limit exceeded: {error_message}",
                 provider="openrouter",
-                retry_after=retry_after
+                retry_after=retry_after,
             )
         elif response.status_code >= 500:
             raise LLMServiceUnavailableError(
-                f"OpenRouter service error: {error_message}",
-                provider="openrouter"
+                f"OpenRouter service error: {error_message}", provider="openrouter"
             )
         elif response.status_code == 400:
             raise LLMInvalidRequestError(f"Invalid request: {error_message}")
@@ -555,7 +554,7 @@ class OpenRouterProvider(LLMProvider):
         else:
             raise LLMError(
                 f"OpenRouter API error ({response.status_code}): {error_message}",
-                provider="openrouter"
+                provider="openrouter",
             )
 
     def _parse_response(self, response_data: Dict[str, Any]) -> LLMResponse:
@@ -573,8 +572,8 @@ class OpenRouterProvider(LLMProvider):
                         "type": tc["type"],
                         "function": {
                             "name": tc["function"]["name"],
-                            "arguments": tc["function"]["arguments"]
-                        }
+                            "arguments": tc["function"]["arguments"],
+                        },
                     }
                     for tc in message["tool_calls"]
                 ]
@@ -584,7 +583,7 @@ class OpenRouterProvider(LLMProvider):
                 model=response_data.get("model", self.model),
                 finish_reason=choice.get("finish_reason"),
                 usage=response_data.get("usage"),
-                tool_calls=tool_calls
+                tool_calls=tool_calls,
             )
 
         except (KeyError, IndexError):
@@ -593,10 +592,7 @@ class OpenRouterProvider(LLMProvider):
 
 # Provider factory
 def create_llm_provider(
-    provider_name: str,
-    api_key: str,
-    model: str = "openai/gpt-3.5-turbo",
-    **kwargs
+    provider_name: str, api_key: str, model: str = "openai/gpt-3.5-turbo", **kwargs
 ) -> LLMProvider:
     """Factory function to create LLM providers."""
     if provider_name.lower() == "openrouter":

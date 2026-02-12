@@ -20,6 +20,7 @@ dependencies = [
     "structlog>=23.2.0",
     "python-json-logger>=2.0.0",
     "asyncio>=3.4.3",
+    "simpleeval>=0.9.0",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -38,6 +39,9 @@ dev = [
     "isort>=5.12.0",
     "mypy>=1.7.0",
     "pre-commit>=3.5.0",
+    "flake8>=6.0.0",
+    "build>=1.0.0",
+    "twine>=4.0.0",
 ]
 docs = [
     "mkdocs>=1.5.0",

@@ -3,7 +3,7 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 
 import structlog
 from pythonjsonlogger import jsonlogger
@@ -15,7 +15,7 @@ def configure_logging(
     level: str = "INFO",
     format_type: str = "json",
     log_file: Optional[str] = None,
-    enable_console: bool = True
+    enable_console: bool = True,
 ) -> None:
     """
     Configure structured logging for the application.
@@ -40,7 +40,7 @@ def configure_logging(
             level=numeric_level,
             format="%(message)s",  # structlog handles formatting
             stream=sys.stdout if enable_console else None,
-            force=True  # Override any existing configuration
+            force=True,  # Override any existing configuration
         )
 
         # Shared processors for both formats
@@ -50,11 +50,13 @@ def configure_logging(
             structlog.processors.TimeStamper(fmt="iso"),
             _add_request_id,
             _sanitize_sensitive_data,
-            structlog.processors.JSONRenderer()
-            if format_type == "json"
-            else structlog.processors.KeyValueRenderer(key_order=[
-                "timestamp", "level", "request_id", "event", "logger"
-            ]),
+            (
+                structlog.processors.JSONRenderer()
+                if format_type == "json"
+                else structlog.processors.KeyValueRenderer(
+                    key_order=["timestamp", "level", "request_id", "event", "logger"]
+                )
+            ),
         ]
 
         # Configure structlog
@@ -77,7 +79,7 @@ def configure_logging(
         # Fallback to basic logging if configuration fails
         logging.basicConfig(
             level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
         logging.error(f"Failed to configure structured logging: {e}")
         raise ConfigurationError(f"Logging configuration failed: {e}")
@@ -88,9 +90,10 @@ def _add_request_id(logger, method_name, event_dict):
     # This would be populated by middleware in a web context
     # For now, we'll use a simple session-based approach
     import threading
-    request_id = getattr(threading.current_thread(), 'request_id', None)
+
+    request_id = getattr(threading.current_thread(), "request_id", None)
     if request_id:
-        event_dict['request_id'] = request_id
+        event_dict["request_id"] = request_id
     return event_dict
 
 
@@ -101,8 +104,14 @@ def _sanitize_sensitive_data(logger, method_name, event_dict):
     This prevents accidental logging of API keys, passwords, etc.
     """
     sensitive_keys = {
-        'api_key', 'apikey', 'password', 'token', 'secret',
-        'authorization', 'bearer', 'openrouter_api_key'
+        "api_key",
+        "apikey",
+        "password",
+        "token",
+        "secret",
+        "authorization",
+        "bearer",
+        "openrouter_api_key",
     }
 
     for key in sensitive_keys:
@@ -181,11 +190,7 @@ def log_request_start(request_id: str, method: str, path: str, **kwargs):
     """Log the start of a request."""
     logger = get_logger("terminal_gpt.api")
     logger.info(
-        "Request started",
-        request_id=request_id,
-        method=method,
-        path=path,
-        **kwargs
+        "Request started", request_id=request_id, method=method, path=path, **kwargs
     )
 
 
@@ -198,7 +203,7 @@ def log_request_end(request_id: str, status_code: int, duration_ms: float, **kwa
         request_id=request_id,
         status_code=status_code,
         duration_ms=duration_ms,
-        **kwargs
+        **kwargs,
     )
 
 
@@ -211,20 +216,17 @@ def log_plugin_execution(plugin_name: str, success: bool, duration_ms: float, **
         plugin_name=plugin_name,
         success=success,
         duration_ms=duration_ms,
-        **kwargs
+        **kwargs,
     )
 
 
-def log_llm_call(provider: str, success: bool,
-                 tokens_used: Optional[int] = None, **kwargs):
+def log_llm_call(
+    provider: str, success: bool, tokens_used: Optional[int] = None, **kwargs
+):
     """Log LLM API calls."""
     logger = get_logger("terminal_gpt.llm")
     level = "info" if success else "warning"
-    log_data = {
-        "provider": provider,
-        "success": success,
-        **kwargs
-    }
+    log_data = {"provider": provider, "success": success, **kwargs}
     if tokens_used is not None:
         log_data["tokens_used"] = tokens_used
 

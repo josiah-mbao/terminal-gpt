@@ -1,0 +1,122 @@
+# =============================================================================
+# Terminal GPT - Docker Compose Configuration
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # API Server
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: terminal-gpt-api
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - RELOAD=false
+      - LOG_LEVEL=INFO
+      # API key should be provided via .env file or environment
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-openai/gpt-3.5-turbo}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - terminal-gpt-network
+
+  # ---------------------------------------------------------------------------
+  # CLI Service (for interactive use)
+  # ---------------------------------------------------------------------------
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: terminal-gpt-cli
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-openai/gpt-3.5-turbo}
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+    command: python -m terminal_gpt chat
+    networks:
+      - terminal-gpt-network
+    profiles:
+      - cli  # Only start when explicitly requested: docker compose --profile cli up
+
+  # ---------------------------------------------------------------------------
+  # Development Server (with hot reload)
+  # ---------------------------------------------------------------------------
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: terminal-gpt-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - RELOAD=true
+      - LOG_LEVEL=DEBUG
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-openai/gpt-3.5-turbo}
+    env_file:
+      - .env
+    volumes:
+      # Mount source code for hot reload during development
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+    networks:
+      - terminal-gpt-network
+    profiles:
+      - dev  # Only start when explicitly requested: docker compose --profile dev up
+
+# -----------------------------------------------------------------------------
+# Networks
+# -----------------------------------------------------------------------------
+networks:
+  terminal-gpt-network:
+    driver: bridge
+
+# -----------------------------------------------------------------------------
+# Usage Instructions:
+# -----------------------------------------------------------------------------
+# 
+# 1. Build all images:
+#    docker compose build
+#
+# 2. Run API server:
+#    docker compose up api
+#
+# 3. Run CLI interactively:
+#    docker compose --profile cli run --rm cli
+#
+# 4. Run development server with hot reload:
+#    docker compose --profile dev up dev
+#
+# 5. Run tests in container:
+#    docker compose run --rm dev pytest
+#
+# 6. View logs:
+#    docker compose logs -f api
+#
+# 7. Stop all services:
+#    docker compose down
+#

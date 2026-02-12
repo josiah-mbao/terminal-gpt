@@ -1,25 +1,17 @@
 """Terminal CLI interface for Terminal GPT."""
 
 import asyncio
-import os
-import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 import httpx
 import typer
-from rich.console import Console
-from rich.live import Live
-from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
-from rich.spinner import Spinner
+from rich.prompt import Prompt
 from rich.table import Table
-from rich.theme import Theme
 
 from ..infrastructure.logging import get_logger
-from .enhanced_ui import enhanced_ui, StatusLevel
+from .enhanced_ui import StatusLevel, enhanced_ui
 
 logger = get_logger("terminal_gpt.cli")
 
@@ -47,16 +39,9 @@ async def check_api_health() -> bool:
 async def send_chat_message(session_id: str, message: str) -> Optional[dict]:
     """Send a chat message to the API."""
     try:
-        payload = {
-            "session_id": session_id,
-            "message": message
-        }
+        payload = {"session_id": session_id, "message": message}
 
-        response = await client.post(
-            f"{api_base_url}/chat",
-            json=payload,
-            timeout=60.0
-        )
+        response = await client.post(f"{api_base_url}/chat", json=payload, timeout=60.0)
 
         if response.status_code == 200:
             return response.json()
@@ -65,15 +50,19 @@ async def send_chat_message(session_id: str, message: str) -> Optional[dict]:
             ui.print_status(
                 StatusLevel.ERROR,
                 f"API Error ({response.status_code})",
-                error_data.get("error", {}).get("message", "Unknown error")
+                error_data.get("error", {}).get("message", "Unknown error"),
             )
             return None
 
     except httpx.TimeoutException:
-        ui.print_status(StatusLevel.ERROR, "Request timed out", "The API took too long to respond")
+        ui.print_status(
+            StatusLevel.ERROR, "Request timed out", "The API took too long to respond"
+        )
         return None
     except Exception as e:
-        ui.print_status(StatusLevel.ERROR, "Connection failed", f"Could not connect to API: {e}")
+        ui.print_status(
+            StatusLevel.ERROR, "Connection failed", f"Could not connect to API: {e}"
+        )
         return None
 
 
@@ -181,11 +170,7 @@ async def handle_sessions_command():
     table.add_column("Last Activity", style="green")
 
     for session_id, info in sessions.items():
-        table.add_row(
-            session_id,
-            str(info["message_count"]),
-            info["last_activity"]
-        )
+        table.add_row(session_id, str(info["message_count"]), info["last_activity"])
 
     ui.console.print(table)
 
@@ -200,7 +185,10 @@ async def handle_switch_session(session_id: str):
         current_session = session_id
         ui.print_status(StatusLevel.SUCCESS, f"Switched to session: {session_id}")
     else:
-        ui.print_status(StatusLevel.WARNING, f"Session '{session_id}' not found. Use /new {session_id} to create it.")
+        ui.print_status(
+            StatusLevel.WARNING,
+            f"Session '{session_id}' not found. Use /new {session_id} to create it.",
+        )
 
 
 async def handle_new_session(session_id: str):
@@ -209,7 +197,9 @@ async def handle_new_session(session_id: str):
 
     if await create_session(session_id):
         current_session = session_id
-        ui.print_status(StatusLevel.SUCCESS, f"Created and switched to new session: {session_id}")
+        ui.print_status(
+            StatusLevel.SUCCESS, f"Created and switched to new session: {session_id}"
+        )
     else:
         ui.print_status(StatusLevel.ERROR, f"Failed to create session: {session_id}")
 
@@ -231,9 +221,9 @@ async def handle_status_command():
         ui.print_status(StatusLevel.SUCCESS, "API is healthy and responding")
     else:
         ui.print_status(
-            StatusLevel.ERROR, 
-            "API is not responding", 
-            "Make sure the API server is running on http://localhost:8000"
+            StatusLevel.ERROR,
+            "API is not responding",
+            "Make sure the API server is running on http://localhost:8000",
         )
 
 
@@ -281,19 +271,20 @@ async def chat_loop():
                 # Show metadata if available
                 if response.get("tokens_used"):
                     ui.print_status(
-                        StatusLevel.INFO, 
-                        f"Tokens used: {response['tokens_used']}"
+                        StatusLevel.INFO, f"Tokens used: {response['tokens_used']}"
                     )
                 if response.get("processing_time_ms"):
                     ui.print_status(
-                        StatusLevel.INFO, 
-                        f"Response time: {response['processing_time_ms']}ms"
+                        StatusLevel.INFO,
+                        f"Response time: {response['processing_time_ms']}ms",
                     )
 
                 # Show status
                 status = response.get("status", "unknown")
                 if status == "degraded":
-                    ui.print_status(StatusLevel.WARNING, "Response generated in degraded mode")
+                    ui.print_status(
+                        StatusLevel.WARNING, "Response generated in degraded mode"
+                    )
                 elif status == "error":
                     ui.print_status(StatusLevel.ERROR, "Response generated with errors")
 
@@ -301,7 +292,10 @@ async def chat_loop():
                 ui.print_status(StatusLevel.ERROR, "Failed to get response from AI")
 
         except KeyboardInterrupt:
-            ui.print_status(StatusLevel.WARNING, "Input cancelled. Type /quit to exit or continue chatting.")
+            ui.print_status(
+                StatusLevel.WARNING,
+                "Input cancelled. Type /quit to exit or continue chatting.",
+            )
         except EOFError:
             break
         except Exception as e:
@@ -316,25 +310,27 @@ async def startup_checks():
     if not await check_api_health():
         ui.print_status(StatusLevel.ERROR, "API server is not running or not healthy")
         ui.print_status(StatusLevel.INFO, "Make sure to start the API server first:")
-        ui.print_status(StatusLevel.INFO, "  uvicorn src.terminal_gpt.api.routes:app --reload")
+        ui.print_status(
+            StatusLevel.INFO, "  uvicorn src.terminal_gpt.api.routes:app --reload"
+        )
         return False
 
     ui.print_status(StatusLevel.SUCCESS, "API connection established")
-    
+
     # Check terminal compatibility
     ui.print_status(StatusLevel.INFO, "Validating terminal compatibility...")
     validation = ui.validate_terminal_size()
-    
+
     if not validation["is_compatible"]:
         ui.print_accessibility_report()
         ui.print_status(
-            StatusLevel.WARNING, 
+            StatusLevel.WARNING,
             "Consider adjusting terminal size for optimal experience",
-            persistent=True
+            persistent=True,
         )
     else:
         ui.print_status(StatusLevel.SUCCESS, "Terminal compatibility verified")
-    
+
     return True
 
 
@@ -342,14 +338,18 @@ async def startup_checks():
 app = typer.Typer(
     name="terminal-gpt",
     help="AI-powered terminal chat with plugin support",
-    rich_markup_mode="rich"
+    rich_markup_mode="rich",
 )
 
 
 @app.command()
 def chat(
-    session: Optional[str] = typer.Option(None, "--session", "-s", help="Session ID to use"),
-    api_url: str = typer.Option("http://localhost:8000", "--api-url", help="API base URL")
+    session: Optional[str] = typer.Option(
+        None, "--session", "-s", help="Session ID to use"
+    ),
+    api_url: str = typer.Option(
+        "http://localhost:8000", "--api-url", help="API base URL"
+    ),
 ):
     """Start interactive chat session."""
     global current_session, api_base_url
@@ -388,7 +388,11 @@ def chat(
 
 
 @app.command()
-def sessions(api_url: str = typer.Option("http://localhost:8000", "--api-url", help="API base URL")):
+def sessions(
+    api_url: str = typer.Option(
+        "http://localhost:8000", "--api-url", help="API base URL"
+    )
+):
     """List active conversation sessions."""
     global api_base_url
     api_base_url = api_url.rstrip("/")
@@ -403,7 +407,11 @@ def sessions(api_url: str = typer.Option("http://localhost:8000", "--api-url", h
 
 
 @app.command()
-def stats(api_url: str = typer.Option("http://localhost:8000", "--api-url", help="API base URL")):
+def stats(
+    api_url: str = typer.Option(
+        "http://localhost:8000", "--api-url", help="API base URL"
+    )
+):
     """Show system statistics."""
     global api_base_url
     api_base_url = api_url.rstrip("/")

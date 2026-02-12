@@ -6,8 +6,8 @@ token usage and improve performance.
 
 import hashlib
 import json
-from typing import Dict, Optional, Any
 from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
 from ..config import load_config
 from ..infrastructure.logging import get_logger
@@ -59,10 +59,7 @@ class PromptCache:
             prompt_key: Hash key for the prompt
             content: Prompt content to cache
         """
-        self._cache[prompt_key] = {
-            "content": content,
-            "timestamp": datetime.utcnow()
-        }
+        self._cache[prompt_key] = {"content": content, "timestamp": datetime.utcnow()}
 
     def clear(self) -> None:
         """Clear all cached prompts."""
@@ -111,19 +108,13 @@ class PromptManager:
         """
         # Create a hash of relevant configuration options
         config_data = {
-            "use_optimized_prompt": self._config.get(
-                "use_optimized_prompt", True
-            ),
-            "max_conversation_length": self._config.get(
-                "max_conversation_length", 100
-            ),
-            "sliding_window_size": self._config.get(
-                "sliding_window_size", 50
-            ),
+            "use_optimized_prompt": self._config.get("use_optimized_prompt", True),
+            "max_conversation_length": self._config.get("max_conversation_length", 100),
+            "sliding_window_size": self._config.get("sliding_window_size", 50),
         }
 
         config_str = json.dumps(config_data, sort_keys=True)
-        return hashlib.md5(config_str.encode()).hexdigest()
+        return hashlib.sha256(config_str.encode()).hexdigest()
 
     def invalidate_cache(self) -> None:
         """Invalidate all cached prompts."""
@@ -140,7 +131,7 @@ class PromptManager:
         prompt = self.get_system_prompt()
         return {
             "length": len(prompt),
-            "lines": len(prompt.split('\n')),
+            "lines": len(prompt.split("\n")),
             "tokens_estimate": len(prompt) // 4,  # Rough token estimation
             "cache_size": len(self._cache._cache),
         }

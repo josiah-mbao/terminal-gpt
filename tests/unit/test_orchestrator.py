@@ -1,14 +1,14 @@
 """Unit tests for conversation orchestrator."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Dict, Any
+
+import pytest
 
 from terminal_gpt.application.orchestrator import ConversationOrchestrator
-from terminal_gpt.infrastructure.llm_providers import LLMResponse, OpenRouterProvider
+from terminal_gpt.domain.exceptions import LLMError, PluginError, ValidationError
 from terminal_gpt.domain.models import ConversationState, Message
-from terminal_gpt.domain.exceptions import ValidationError, LLMError, PluginError
 from terminal_gpt.domain.plugins import plugin_registry
+from terminal_gpt.infrastructure.llm_providers import LLMResponse, OpenRouterProvider
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def orchestrator(mock_llm_provider):
     return ConversationOrchestrator(
         llm_provider=mock_llm_provider,
         max_conversation_length=10,
-        sliding_window_size=5
+        sliding_window_size=5,
     )
 
 
@@ -45,7 +45,7 @@ class TestConversationOrchestrator:
             llm_provider=mock_llm_provider,
             max_conversation_length=50,
             sliding_window_size=20,
-            enable_summarization=True
+            enable_summarization=True,
         )
 
         assert orch.llm_provider == mock_llm_provider
@@ -75,13 +75,15 @@ class TestConversationOrchestrator:
             await orchestrator.start_conversation(session_id)
 
     @pytest.mark.asyncio
-    async def test_process_user_message_new_conversation(self, orchestrator, mock_llm_provider):
+    async def test_process_user_message_new_conversation(
+        self, orchestrator, mock_llm_provider
+    ):
         """Test processing user message in new conversation."""
         # Mock LLM response
         mock_response = LLMResponse(
             content="Hello! How can I help you?",
             model="gpt-3.5-turbo",
-            usage={"total_tokens": 20}
+            usage={"total_tokens": 20},
         )
         mock_llm_provider.generate.return_value = mock_response
 
@@ -103,35 +105,37 @@ class TestConversationOrchestrator:
         assert conversation.messages[1].content == response
 
     @pytest.mark.asyncio
-    async def test_process_user_message_with_tools(self, orchestrator, mock_llm_provider):
+    async def test_process_user_message_with_tools(
+        self, orchestrator, mock_llm_provider
+    ):
         """Test processing message that triggers tool usage."""
         # Mock tool call response
         tool_call_response = LLMResponse(
             content="",
             model="gpt-3.5-turbo",
             usage={"total_tokens": 50},
-            tool_calls=[{
-                "id": "call_123",
-                "type": "function",
-                "function": {
-                    "name": "calculator",
-                    "arguments": '{"expression": "2 + 2"}'
+            tool_calls=[
+                {
+                    "id": "call_123",
+                    "type": "function",
+                    "function": {
+                        "name": "calculator",
+                        "arguments": '{"expression": "2 + 2"}',
+                    },
                 }
-            }]
+            ],
         )
 
         # Mock final response after tool execution
         final_response = LLMResponse(
-            content="2 + 2 equals 4",
-            model="gpt-3.5-turbo",
-            usage={"total_tokens": 70}
+            content="2 + 2 equals 4", model="gpt-3.5-turbo", usage={"total_tokens": 70}
         )
 
         # Configure mock to return tool call first, then final response
         mock_llm_provider.generate.side_effect = [tool_call_response, final_response]
 
         # Mock plugin execution
-        with patch.object(plugin_registry, 'execute_tool_call') as mock_execute:
+        with patch.object(plugin_registry, "execute_tool_call") as mock_execute:
             mock_execute.return_value = {"result": 4, "expression": "2 + 2"}
 
             session_id = "test-session"
@@ -150,7 +154,9 @@ class TestConversationOrchestrator:
             assert len(tool_messages) == 1
 
     @pytest.mark.asyncio
-    async def test_process_user_message_llm_error(self, orchestrator, mock_llm_provider):
+    async def test_process_user_message_llm_error(
+        self, orchestrator, mock_llm_provider
+    ):
         """Test handling LLM errors gracefully."""
         mock_llm_provider.generate.side_effect = LLMError("Service unavailable")
 
@@ -220,7 +226,7 @@ class TestConversationOrchestrator:
 
     def test_get_available_tools(self, orchestrator):
         """Test getting available tools."""
-        with patch.object(plugin_registry, 'list_tools') as mock_list:
+        with patch.object(plugin_registry, "list_tools") as mock_list:
             mock_list.return_value = [{"name": "test_tool"}]
             tools = orchestrator._get_available_tools()
             assert tools == [{"name": "test_tool"}]
@@ -228,14 +234,11 @@ class TestConversationOrchestrator:
     @pytest.mark.asyncio
     async def test_execute_tool_calls_success(self, orchestrator):
         """Test successful tool execution."""
-        tool_calls = [{
-            "function": {
-                "name": "calculator",
-                "arguments": '{"expression": "1 + 1"}'
-            }
-        }]
+        tool_calls = [
+            {"function": {"name": "calculator", "arguments": '{"expression": "1 + 1"}'}}
+        ]
 
-        with patch.object(plugin_registry, 'execute_tool_call') as mock_execute:
+        with patch.object(plugin_registry, "execute_tool_call") as mock_execute:
             mock_execute.return_value = {"result": 2}
 
             results = await orchestrator._execute_tool_calls("session-123", tool_calls)
@@ -248,14 +251,16 @@ class TestConversationOrchestrator:
     @pytest.mark.asyncio
     async def test_execute_tool_calls_plugin_error(self, orchestrator):
         """Test tool execution with plugin error."""
-        tool_calls = [{
-            "function": {
-                "name": "calculator",
-                "arguments": '{"expression": "invalid"}'
+        tool_calls = [
+            {
+                "function": {
+                    "name": "calculator",
+                    "arguments": '{"expression": "invalid"}',
+                }
             }
-        }]
+        ]
 
-        with patch.object(plugin_registry, 'execute_tool_call') as mock_execute:
+        with patch.object(plugin_registry, "execute_tool_call") as mock_execute:
             mock_execute.side_effect = PluginError("Invalid expression")
 
             results = await orchestrator._execute_tool_calls("session-123", tool_calls)
@@ -318,10 +323,7 @@ class TestConversationOrchestrator:
         conv2 = conv2.add_message(Message(role="user", content="Hello"))
         conv2 = conv2.add_message(Message(role="assistant", content="Hi there"))
 
-        orchestrator._conversations = {
-            "session1": conv1,
-            "session2": conv2
-        }
+        orchestrator._conversations = {"session1": conv1, "session2": conv2}
 
         summaries = orchestrator.list_conversations()
 
@@ -367,20 +369,22 @@ class TestConversationOrchestrator:
             content="",
             model="gpt-3.5-turbo",
             usage={"total_tokens": 50},
-            tool_calls=[{
-                "id": "call_123",
-                "type": "function",
-                "function": {
-                    "name": "calculator",
-                    "arguments": '{"expression": "1 + 1"}'
+            tool_calls=[
+                {
+                    "id": "call_123",
+                    "type": "function",
+                    "function": {
+                        "name": "calculator",
+                        "arguments": '{"expression": "1 + 1"}',
+                    },
                 }
-            }]
+            ],
         )
 
         mock_llm_provider.generate.return_value = tool_call_response
 
         # Mock successful tool execution
-        with patch.object(plugin_registry, 'execute_tool_call') as mock_execute:
+        with patch.object(plugin_registry, "execute_tool_call") as mock_execute:
             mock_execute.return_value = {"result": 2}
 
             session_id = "test-session"
@@ -396,10 +400,12 @@ class TestConversationOrchestrator:
 
         session_id = "test-session"
 
-        with patch('terminal_gpt.application.orchestrator.publish_conversation_error') as mock_publish:
+        with patch(
+            "terminal_gpt.application.orchestrator.publish_conversation_error"
+        ) as mock_publish:
             try:
                 await orchestrator.process_user_message(session_id, "Hello")
-            except:
+            except Exception:
                 pass  # Expected to raise
 
             # Should have published error event

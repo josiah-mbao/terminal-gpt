@@ -1,16 +1,22 @@
 """Unit tests for LLM providers."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from httpx import Response
+from unittest.mock import MagicMock, patch
 
-from terminal_gpt.infrastructure.llm_providers import (
-    LLMProvider, OpenRouterProvider, LLMResponse, create_llm_provider
-)
+import pytest
+
 from terminal_gpt.domain.exceptions import (
-    ConfigurationError, LLMError, LLMAuthenticationError,
-    LLMQuotaExceededError, LLMServiceUnavailableError,
-    LLMInvalidRequestError, LLMContentFilterError
+    ConfigurationError,
+    LLMAuthenticationError,
+    LLMContentFilterError,
+    LLMError,
+    LLMInvalidRequestError,
+    LLMQuotaExceededError,
+    LLMServiceUnavailableError,
+)
+from terminal_gpt.infrastructure.llm_providers import (
+    LLMResponse,
+    OpenRouterProvider,
+    create_llm_provider,
 )
 
 
@@ -24,7 +30,7 @@ class TestLLMResponse:
             model="gpt-3.5-turbo",
             finish_reason="stop",
             usage={"total_tokens": 150},
-            tool_calls=None
+            tool_calls=None,
         )
 
         assert response.content == "Hello world"
@@ -39,18 +45,11 @@ class TestLLMResponse:
             {
                 "id": "call_123",
                 "type": "function",
-                "function": {
-                    "name": "read_file",
-                    "arguments": '{"path": "test.txt"}'
-                }
+                "function": {"name": "read_file", "arguments": '{"path": "test.txt"}'},
             }
         ]
 
-        response = LLMResponse(
-            content="",
-            model="gpt-3.5-turbo",
-            tool_calls=tool_calls
-        )
+        response = LLMResponse(content="", model="gpt-3.5-turbo", tool_calls=tool_calls)
 
         assert response.tool_calls == tool_calls
 
@@ -60,11 +59,7 @@ class TestCreateLLMProvider:
 
     def test_create_openrouter_provider(self):
         """Test creating OpenRouter provider."""
-        provider = create_llm_provider(
-            "openrouter",
-            "test-key",
-            model="gpt-4"
-        )
+        provider = create_llm_provider("openrouter", "test-key", model="gpt-4")
 
         assert isinstance(provider, OpenRouterProvider)
         assert provider.api_key == "test-key"
@@ -81,11 +76,7 @@ class TestOpenRouterProvider:
 
     def test_initialization_valid(self):
         """Test provider initialization with valid parameters."""
-        provider = OpenRouterProvider(
-            api_key="test-key",
-            model="gpt-4",
-            max_retries=5
-        )
+        provider = OpenRouterProvider(api_key="test-key", model="gpt-4", max_retries=5)
 
         assert provider.api_key == "test-key"
         assert provider.model == "gpt-4"
@@ -121,6 +112,7 @@ class TestOpenRouterProvider:
 
             # Run in event loop for test
             import asyncio
+
             asyncio.run(test())
 
     @pytest.mark.asyncio
@@ -131,18 +123,17 @@ class TestOpenRouterProvider:
         # Mock response data
         mock_response_data = {
             "model": "openai/gpt-3.5-turbo",
-            "choices": [{
-                "message": {
-                    "content": "Hello from AI",
-                    "role": "assistant"
-                },
-                "finish_reason": "stop"
-            }],
+            "choices": [
+                {
+                    "message": {"content": "Hello from AI", "role": "assistant"},
+                    "finish_reason": "stop",
+                }
+            ],
             "usage": {
                 "total_tokens": 150,
                 "prompt_tokens": 50,
-                "completion_tokens": 100
-            }
+                "completion_tokens": 100,
+            },
         }
 
         # Mock the HTTP client
@@ -150,13 +141,11 @@ class TestOpenRouterProvider:
         mock_response.status_code = 200
         mock_response.json.return_value = mock_response_data
 
-        with patch.object(provider, '_client') as mock_client:
+        with patch.object(provider, "_client") as mock_client:
             mock_client.post.return_value = mock_response
 
             async with provider:
-                result = await provider.generate([
-                    {"role": "user", "content": "Hello"}
-                ])
+                result = await provider.generate([{"role": "user", "content": "Hello"}])
 
             assert result.content == "Hello from AI"
             assert result.model == "openai/gpt-3.5-turbo"
@@ -178,43 +167,46 @@ class TestOpenRouterProvider:
                     "parameters": {
                         "type": "object",
                         "properties": {"path": {"type": "string"}},
-                        "required": ["path"]
-                    }
-                }
+                        "required": ["path"],
+                    },
+                },
             }
         ]
 
         mock_response_data = {
             "model": "openai/gpt-3.5-turbo",
-            "choices": [{
-                "message": {
-                    "content": "",
-                    "role": "assistant",
-                    "tool_calls": [{
-                        "id": "call_123",
-                        "type": "function",
-                        "function": {
-                            "name": "read_file",
-                            "arguments": '{"path": "test.txt"}'
-                        }
-                    }]
-                },
-                "finish_reason": "tool_calls"
-            }],
-            "usage": {"total_tokens": 200}
+            "choices": [
+                {
+                    "message": {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "id": "call_123",
+                                "type": "function",
+                                "function": {
+                                    "name": "read_file",
+                                    "arguments": '{"path": "test.txt"}',
+                                },
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+            "usage": {"total_tokens": 200},
         }
 
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_response_data
 
-        with patch.object(provider, '_client') as mock_client:
+        with patch.object(provider, "_client") as mock_client:
             mock_client.post.return_value = mock_response
 
             async with provider:
                 result = await provider.generate(
-                    [{"role": "user", "content": "Read a file"}],
-                    tools=tools
+                    [{"role": "user", "content": "Read a file"}], tools=tools
                 )
 
             assert result.tool_calls is not None
@@ -227,9 +219,7 @@ class TestOpenRouterProvider:
 
         mock_response = MagicMock()
         mock_response.status_code = 401
-        mock_response.json.return_value = {
-            "error": {"message": "Invalid API key"}
-        }
+        mock_response.json.return_value = {"error": {"message": "Invalid API key"}}
 
         with pytest.raises(LLMAuthenticationError):
             provider._handle_error(mock_response)
@@ -241,9 +231,7 @@ class TestOpenRouterProvider:
         mock_response = MagicMock()
         mock_response.status_code = 429
         mock_response.headers = {"retry-after": "30"}
-        mock_response.json.return_value = {
-            "error": {"message": "Rate limit exceeded"}
-        }
+        mock_response.json.return_value = {"error": {"message": "Rate limit exceeded"}}
 
         with pytest.raises(LLMQuotaExceededError) as exc_info:
             provider._handle_error(mock_response)
@@ -269,9 +257,7 @@ class TestOpenRouterProvider:
 
         mock_response = MagicMock()
         mock_response.status_code = 400
-        mock_response.json.return_value = {
-            "error": {"message": "Invalid request"}
-        }
+        mock_response.json.return_value = {"error": {"message": "Invalid request"}}
 
         with pytest.raises(LLMInvalidRequestError):
             provider._handle_error(mock_response)
@@ -333,15 +319,17 @@ class TestOpenRouterProvider:
             mock_resp.status_code = 200
             mock_resp.json.return_value = {
                 "model": "gpt-3.5-turbo",
-                "choices": [{
-                    "message": {"content": "Success", "role": "assistant"},
-                    "finish_reason": "stop"
-                }],
-                "usage": {"total_tokens": 100}
+                "choices": [
+                    {
+                        "message": {"content": "Success", "role": "assistant"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"total_tokens": 100},
             }
             return mock_resp
 
-        with patch.object(provider, '_client') as mock_client:
+        with patch.object(provider, "_client") as mock_client:
             mock_client.post = mock_post
 
             async with provider:
@@ -365,7 +353,7 @@ class TestOpenRouterProvider:
             mock_resp.json.return_value = {"error": {"message": "Invalid key"}}
             raise LLMAuthenticationError("Invalid key")
 
-        with patch.object(provider, '_client') as mock_client:
+        with patch.object(provider, "_client") as mock_client:
             mock_client.post = mock_post
 
             async with provider:

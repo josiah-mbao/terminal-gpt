@@ -6,12 +6,12 @@ essential context while managing token usage in long conversations.
 
 import json
 import re
-from typing import List, Dict, Any, Tuple
 from datetime import datetime
+from typing import Any, Dict, List, Tuple
 
-from ..domain.models import Message, ConversationState
-from ..infrastructure.logging import get_logger
+from ..domain.models import ConversationState, Message
 from ..infrastructure.llm_providers import LLMProvider
+from ..infrastructure.logging import get_logger
 
 logger = get_logger("terminal_gpt.context_summarizer")
 
@@ -24,7 +24,7 @@ class ContextSummary:
         summary_text: str,
         preserved_context: Dict[str, Any],
         timestamp: datetime,
-        original_message_count: int
+        original_message_count: int,
     ):
         self.summary_text = summary_text
         self.preserved_context = preserved_context
@@ -33,17 +33,12 @@ class ContextSummary:
 
     def to_message(self) -> Message:
         """Convert summary to a system message."""
-        content = (
-            f"Conversation Summary ({self.timestamp.strftime('%H:%M:%S')}):\n\n"
-        )
+        content = f"Conversation Summary ({self.timestamp.strftime('%H:%M:%S')}):\n\n"
         content += f"{self.summary_text}\n\n"
         content += "Preserved Context:\n"
         content += json.dumps(self.preserved_context, indent=2)
 
-        return Message(
-            role="system",
-            content=content
-        )
+        return Message(role="system", content=content)
 
 
 class ContextSummarizer:
@@ -56,7 +51,7 @@ class ContextSummarizer:
         max_summary_length: int = 500,
         preserve_user_preferences: bool = True,
         preserve_tool_results: bool = True,
-        preserve_file_context: bool = True
+        preserve_file_context: bool = True,
     ):
         """
         Initialize context summarizer.
@@ -102,14 +97,13 @@ class ContextSummarizer:
                 session_id=conversation.session_id,
                 current_messages=total_messages,
                 threshold_ratio=current_ratio,
-                threshold=self.summarization_threshold
+                threshold=self.summarization_threshold,
             )
 
         return should_summarize
 
     async def summarize_conversation(
-        self,
-        conversation: ConversationState
+        self, conversation: ConversationState
     ) -> Tuple[ContextSummary, List[Message]]:
         """
         Generate intelligent summary of conversation.
@@ -123,7 +117,7 @@ class ContextSummarizer:
         logger.info(
             "Starting conversation summarization",
             session_id=conversation.session_id,
-            total_messages=len(conversation.messages)
+            total_messages=len(conversation.messages),
         )
 
         # Extract different types of context
@@ -137,13 +131,12 @@ class ContextSummarizer:
             "user_preferences": user_preferences,
             "tool_results": tool_results,
             "file_context": file_context,
-            "technical_context": technical_context
+            "technical_context": technical_context,
         }
 
         # Generate summary text using LLM
         summary_text = await self._generate_summary_text(
-            conversation.messages,
-            preserved_context
+            conversation.messages, preserved_context
         )
 
         # Create summary object
@@ -151,7 +144,7 @@ class ContextSummarizer:
             summary_text=summary_text,
             preserved_context=preserved_context,
             timestamp=datetime.utcnow(),
-            original_message_count=len(conversation.messages)
+            original_message_count=len(conversation.messages),
         )
 
         # Determine which recent messages to keep
@@ -162,7 +155,7 @@ class ContextSummarizer:
             session_id=conversation.session_id,
             summary_length=len(summary_text),
             preserved_context_size=len(json.dumps(preserved_context)),
-            messages_kept=len(recent_messages)
+            messages_kept=len(recent_messages),
         )
 
         return summary, recent_messages
@@ -178,7 +171,7 @@ class ContextSummarizer:
             "study_topics": [],
             "sports_interests": [],
             "system_info": {},
-            "preferences": []
+            "preferences": [],
         }
 
         for message in messages:
@@ -187,8 +180,8 @@ class ContextSummarizer:
 
                 # Extract coding languages
                 lang_patterns = [
-                    r'\b(python|javascript|java|rust|go|c\+\+|c#|typescript)\b',
-                    r'\b(aws|azure|gcp|kubernetes|docker)\b'
+                    r"\b(python|javascript|java|rust|go|c\+\+|c#|typescript)\b",
+                    r"\b(aws|azure|gcp|kubernetes|docker)\b",
                 ]
 
                 for pattern in lang_patterns:
@@ -196,15 +189,23 @@ class ContextSummarizer:
                     preferences["coding_languages"].extend(matches)
 
                 # Extract study topics
-                if any(topic in content for topic in ['aws', 'cka', 'certification', 'study']):
+                if any(
+                    topic in content
+                    for topic in ["aws", "cka", "certification", "study"]
+                ):
                     preferences["study_topics"].append(content[:100])
 
                 # Extract sports interests
-                if any(sport in content for sport in ['epl', 'nba', 'football', 'basketball']):
+                if any(
+                    sport in content
+                    for sport in ["epl", "nba", "football", "basketball"]
+                ):
                     preferences["sports_interests"].append(content[:100])
 
                 # Extract system information
-                if any(info in content for info in ['macbook', 'm1', 'slow', 'performance']):
+                if any(
+                    info in content for info in ["macbook", "m1", "slow", "performance"]
+                ):
                     preferences["system_info"]["performance_issues"] = True
 
         # Remove duplicates and clean up
@@ -228,7 +229,7 @@ class ContextSummarizer:
                     "tool_name": message.name,
                     "content_preview": message.content[:200],
                     "timestamp": message.timestamp.isoformat(),
-                    "is_important": self._is_tool_result_important(message)
+                    "is_important": self._is_tool_result_important(message),
                 }
 
                 if result_info["is_important"]:
@@ -244,7 +245,7 @@ class ContextSummarizer:
         file_context = {
             "recent_files": [],
             "file_operations": [],
-            "important_paths": []
+            "important_paths": [],
         }
 
         for message in messages:
@@ -253,9 +254,9 @@ class ContextSummarizer:
 
                 # Extract file paths
                 path_patterns = [
-                    r'([/\w\-\.]+\.(py|js|ts|java|rust|go|json|md))',
-                    r'(/Users/[^/\s]+/[\w/\-]+)',
-                    r'(src/[\w/\-]+\.\w+)'
+                    r"([/\w\-\.]+\.(py|js|ts|java|rust|go|json|md))",
+                    r"(/Users/[^/\s]+/[\w/\-]+)",
+                    r"(src/[\w/\-]+\.\w+)",
                 ]
 
                 for pattern in path_patterns:
@@ -263,11 +264,16 @@ class ContextSummarizer:
                     file_context["important_paths"].extend(matches)
 
                 # Extract file operations
-                if any(op in content.lower() for op in ['read file', 'write file', 'list directory']):
-                    file_context["file_operations"].append({
-                        "operation": content[:100],
-                        "timestamp": message.timestamp.isoformat()
-                    })
+                if any(
+                    op in content.lower()
+                    for op in ["read file", "write file", "list directory"]
+                ):
+                    file_context["file_operations"].append(
+                        {
+                            "operation": content[:100],
+                            "timestamp": message.timestamp.isoformat(),
+                        }
+                    )
 
         file_context["important_paths"] = list(set(file_context["important_paths"]))
         return file_context
@@ -278,7 +284,7 @@ class ContextSummarizer:
             "current_problems": [],
             "solutions_attempted": [],
             "code_snippets": [],
-            "error_messages": []
+            "error_messages": [],
         }
 
         for message in messages[-20:]:  # Focus on recent messages
@@ -286,10 +292,10 @@ class ContextSummarizer:
 
             # Extract error messages
             error_patterns = [
-                r'Error:\s*(.+)',
-                r'Exception:\s*(.+)',
-                r'Failed:\s*(.+)',
-                r'Cannot\s*(.+)'
+                r"Error:\s*(.+)",
+                r"Exception:\s*(.+)",
+                r"Failed:\s*(.+)",
+                r"Cannot\s*(.+)",
             ]
 
             for pattern in error_patterns:
@@ -297,11 +303,14 @@ class ContextSummarizer:
                 technical_context["error_messages"].extend(matches)
 
             # Extract code snippets (simplified)
-            if '```' in content:
+            if "```" in content:
                 technical_context["code_snippets"].append(content[:300])
 
             # Extract problem descriptions
-            if any(keyword in content.lower() for keyword in ['debug', 'issue', 'problem', 'help']):
+            if any(
+                keyword in content.lower()
+                for keyword in ["debug", "issue", "problem", "help"]
+            ):
                 technical_context["current_problems"].append(content[:150])
 
         return technical_context
@@ -317,8 +326,17 @@ class ContextSummarizer:
         # - Directory listings
 
         important_indicators = [
-            'content:', 'result:', 'score:', 'stat:', 'path:', 'file:',
-            'calculation:', 'directory:', 'list:', 'read_file', 'write_file'
+            "content:",
+            "result:",
+            "score:",
+            "stat:",
+            "path:",
+            "file:",
+            "calculation:",
+            "directory:",
+            "list:",
+            "read_file",
+            "write_file",
         ]
 
         return any(indicator in content for indicator in important_indicators)
@@ -364,9 +382,7 @@ class ContextSummarizer:
         return recent_messages
 
     async def _generate_summary_text(
-        self,
-        messages: List[Message],
-        preserved_context: Dict[str, Any]
+        self, messages: List[Message], preserved_context: Dict[str, Any]
     ) -> str:
         """
         Generate summary text using LLM.
@@ -410,37 +426,30 @@ Summary:
             async with self.llm_provider:
                 response = await self.llm_provider.generate(
                     messages=[{"role": "user", "content": prompt}],
-                    config={"temperature": 0.3, "max_tokens": 200}
+                    config={"temperature": 0.3, "max_tokens": 200},
                 )
 
             summary = response.content.strip()
 
             # Truncate if too long
             if len(summary) > self.max_summary_length:
-                summary = summary[:self.max_summary_length].strip() + "..."
+                summary = summary[: self.max_summary_length].strip() + "..."
 
             return summary
 
         except Exception as e:
-            logger.error(
-                "Failed to generate LLM summary, using fallback",
-                error=str(e)
-            )
+            logger.error("Failed to generate LLM summary, using fallback", error=str(e))
             return self._generate_fallback_summary(messages, preserved_context)
 
     def _generate_fallback_summary(
-        self,
-        messages: List[Message],
-        preserved_context: Dict[str, Any]
+        self, messages: List[Message], preserved_context: Dict[str, Any]
     ) -> str:
         """Generate fallback summary without LLM."""
         summary_parts = []
 
         # Add user preferences
         if preserved_context.get("user_preferences", {}).get("coding_languages"):
-            langs = ", ".join(
-                preserved_context["user_preferences"]["coding_languages"]
-            )
+            langs = ", ".join(preserved_context["user_preferences"]["coding_languages"])
             summary_parts.append(f"User interested in: {langs}")
 
         # Add recent activity
@@ -458,4 +467,8 @@ Summary:
                 summary_parts.append(f"Current issue: {problems[0][:50]}...")
 
         summary = " | ".join(summary_parts)
-        return summary if summary else "Conversation summary generated from preserved context."
+        return (
+            summary
+            if summary
+            else "Conversation summary generated from preserved context."
+        )

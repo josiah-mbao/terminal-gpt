@@ -1,10 +1,11 @@
 """Unit tests for domain models."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from pydantic import ValidationError
 
-from terminal_gpt.domain.models import Message, ConversationState, ConversationSummary
+from terminal_gpt.domain.models import ConversationState, ConversationSummary, Message
 
 
 class TestMessage:
@@ -18,7 +19,7 @@ class TestMessage:
         assert msg.content == "Hello world"
         assert msg.name is None
         assert isinstance(msg.timestamp, datetime)
-        assert msg.model_config.get('frozen') is True
+        assert msg.model_config.get("frozen") is True
 
     def test_message_immutability(self):
         """Test that messages are immutable."""
@@ -186,7 +187,7 @@ class TestConversationSummary:
             session_id="test",
             message_count=5,
             last_activity=datetime.utcnow(),
-            total_tokens_estimate=150
+            total_tokens_estimate=150,
         )
 
         assert summary.session_id == "test"
