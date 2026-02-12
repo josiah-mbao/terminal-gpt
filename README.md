@@ -2,6 +2,8 @@
 
 A fully functional AI agent platform with tool-augmented reasoning, built with Python and FastAPI. Features real LLM conversations, extensible plugin architecture, and a rich terminal interface.
 
+**Meet Jengo 🧃** — your laid-back, slightly whimsical AI assistant with personality!
+
 [![CI](https://github.com/josiah-mbao/terminal-gpt/actions/workflows/ci.yml/badge.svg)](https://github.com/josiah-mbao/terminal-gpt/actions/workflows/ci.yml)
 [![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -31,6 +33,8 @@ python -m terminal_gpt server
 # Terminal 2: Start the streaming chat client
 python -m terminal_gpt streaming
 ```
+
+You'll be chatting with **Jengo** — say hello! 👋
 
 ## 🧃 Meet Jengo - Your AI Assistant
 
